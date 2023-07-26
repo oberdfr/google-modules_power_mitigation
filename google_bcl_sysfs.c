@@ -72,10 +72,19 @@ static ssize_t batoilo_count_show(struct device *dev, struct device_attribute *a
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	return safe_emit_bcl_cnt(buf, bcl_dev->zone[BATOILO]);
+	return safe_emit_bcl_cnt(buf, bcl_dev->zone[BATOILO1]);
 }
 
 static DEVICE_ATTR_RO(batoilo_count);
+
+static ssize_t batoilo2_count_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	return safe_emit_bcl_cnt(buf, bcl_dev->zone[BATOILO2]);
+}
+
+static DEVICE_ATTR_RO(batoilo2_count);
 
 static ssize_t vdroop2_count_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -184,10 +193,19 @@ static ssize_t batoilo_cap_show(struct device *dev, struct device_attribute *att
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	return safe_emit_bcl_capacity(buf, bcl_dev->zone[BATOILO]);
+	return safe_emit_bcl_capacity(buf, bcl_dev->zone[BATOILO1]);
 }
 
 static DEVICE_ATTR_RO(batoilo_cap);
+
+static ssize_t batoilo2_cap_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	return safe_emit_bcl_capacity(buf, bcl_dev->zone[BATOILO2]);
+}
+
+static DEVICE_ATTR_RO(batoilo2_cap);
 
 static ssize_t vdroop2_cap_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -291,15 +309,23 @@ static ssize_t soft_ocp_gpu_cap_show(struct device *dev, struct device_attribute
 
 static DEVICE_ATTR_RO(soft_ocp_gpu_cap);
 
-
 static ssize_t batoilo_volt_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	return safe_emit_bcl_voltage(buf, bcl_dev->zone[BATOILO]);
+	return safe_emit_bcl_voltage(buf, bcl_dev->zone[BATOILO1]);
 }
 
 static DEVICE_ATTR_RO(batoilo_volt);
+
+static ssize_t batoilo2_volt_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	return safe_emit_bcl_voltage(buf, bcl_dev->zone[BATOILO2]);
+}
+
+static DEVICE_ATTR_RO(batoilo2_volt);
 
 static ssize_t vdroop2_volt_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -403,15 +429,23 @@ static ssize_t soft_ocp_gpu_volt_show(struct device *dev, struct device_attribut
 
 static DEVICE_ATTR_RO(soft_ocp_gpu_volt);
 
-
 static ssize_t batoilo_time_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	return safe_emit_bcl_time(buf, bcl_dev->zone[BATOILO]);
+	return safe_emit_bcl_time(buf, bcl_dev->zone[BATOILO1]);
 }
 
 static DEVICE_ATTR_RO(batoilo_time);
+
+static ssize_t batoilo2_time_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	return safe_emit_bcl_time(buf, bcl_dev->zone[BATOILO2]);
+}
+
+static DEVICE_ATTR_RO(batoilo2_time);
 
 static ssize_t vdroop2_time_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -742,8 +776,7 @@ static const struct attribute_group instr_group = {
 	.name = "instruction",
 };
 
-static int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic,
-			 int triggered, unsigned int *val)
+int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val)
 {
 	int prot;
 	int ret;
@@ -787,6 +820,9 @@ static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
 
 	if (ifpmic == MAX77779) {
 		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
+		ret = max77779_external_reg_read(client, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
 		if (triggered == UVLO1)
 			regval = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(regval, val);
 		else
@@ -796,6 +832,9 @@ static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
 			return -EINVAL;
 	} else {
 		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
+		ret = max77759_external_reg_read(client, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
 		if (triggered == UVLO1)
 			regval = _chg_cnfg_15_sys_uvlo1_set(regval, val);
 		else
@@ -928,8 +967,7 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 
 static DEVICE_ATTR_RW(uvlo2_lvl);
 
-static int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic,
-			    int oilo, unsigned int *val)
+int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val)
 {
 	int prot;
 	int ret;
@@ -970,6 +1008,9 @@ static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
 
 	if (ifpmic == MAX77779) {
 		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
+		ret = max77779_external_reg_read(client, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
 		if (oilo == BATOILO1)
 			regval = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(regval, val);
 		else
@@ -990,7 +1031,7 @@ static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
 	return ret;
 }
 
-static ssize_t batoilo1_lvl_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t batoilo_lvl_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
@@ -1010,7 +1051,7 @@ static ssize_t batoilo1_lvl_show(struct device *dev, struct device_attribute *at
 	return sysfs_emit(buf, "%umA\n", batoilo1_lvl);
 }
 
-static ssize_t batoilo1_lvl_store(struct device *dev,
+static ssize_t batoilo_lvl_store(struct device *dev,
 				  struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -1043,7 +1084,7 @@ static ssize_t batoilo1_lvl_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR_RW(batoilo1_lvl);
+static DEVICE_ATTR_RW(batoilo_lvl);
 
 static ssize_t batoilo2_lvl_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1485,7 +1526,7 @@ static DEVICE_ATTR_RW(soft_ocp_gpu_lvl);
 static struct attribute *triggered_lvl_attrs[] = {
 	&dev_attr_uvlo1_lvl.attr,
 	&dev_attr_uvlo2_lvl.attr,
-	&dev_attr_batoilo1_lvl.attr,
+	&dev_attr_batoilo_lvl.attr,
 	&dev_attr_batoilo2_lvl.attr,
 	&dev_attr_smpl_lvl.attr,
 	&dev_attr_ocp_cpu1_lvl.attr,
@@ -2110,6 +2151,7 @@ static struct attribute *triggered_count_attrs[] = {
 	&dev_attr_vdroop1_count.attr,
 	&dev_attr_vdroop2_count.attr,
 	&dev_attr_batoilo_count.attr,
+	&dev_attr_batoilo2_count.attr,
 	NULL,
 };
 
@@ -2131,6 +2173,7 @@ static struct attribute *triggered_time_attrs[] = {
 	&dev_attr_vdroop1_time.attr,
 	&dev_attr_vdroop2_time.attr,
 	&dev_attr_batoilo_time.attr,
+	&dev_attr_batoilo2_time.attr,
 	NULL,
 };
 
@@ -2152,6 +2195,7 @@ static struct attribute *triggered_cap_attrs[] = {
 	&dev_attr_vdroop1_cap.attr,
 	&dev_attr_vdroop2_cap.attr,
 	&dev_attr_batoilo_cap.attr,
+	&dev_attr_batoilo2_cap.attr,
 	NULL,
 };
 
@@ -2173,6 +2217,7 @@ static struct attribute *triggered_volt_attrs[] = {
 	&dev_attr_vdroop1_volt.attr,
 	&dev_attr_vdroop2_volt.attr,
 	&dev_attr_batoilo_volt.attr,
+	&dev_attr_batoilo2_volt.attr,
 	NULL,
 };
 

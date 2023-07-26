@@ -154,6 +154,7 @@ struct bcl_zone {
 	void *parent;
 	int idx;
 	bool disabled;
+	bool irq_reg;
 };
 
 struct bcl_core_conf {
@@ -249,6 +250,7 @@ struct bcl_device {
 
 	int batoilo_lower_limit;
 	int batoilo_upper_limit;
+	int pmic_irq;
 
 	enum IFPMIC ifpmic;
 };
@@ -273,10 +275,12 @@ void google_bcl_qos_update(struct bcl_zone *zone, bool throttle);
 int google_bcl_setup_qos(struct bcl_device *bcl_dev);
 void google_bcl_remove_qos(struct bcl_device *bcl_dev);
 void google_init_debugfs(struct bcl_device *bcl_dev);
+int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
+int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
 #else
 struct bcl_device;
 
-static inline settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setting)
+static inline int settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setting)
 {
 	return 0;
 }
