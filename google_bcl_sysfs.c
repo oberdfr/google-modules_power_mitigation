@@ -796,7 +796,7 @@ int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, 
 			*val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_get(regval);
 	} else {
 		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
-		ret = max77779_external_reg_read(client, reg, &regval);
+		ret = max77759_external_reg_read(client, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
