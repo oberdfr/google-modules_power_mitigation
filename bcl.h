@@ -13,11 +13,10 @@
 #include <dt-bindings/power/s2mpg1x-power.h>
 #include <dt-bindings/soc/google/zuma-bcl.h>
 
-/* consistency checks in google_bcl_register_callback() */
-#define bcl_cb_get_irq(bcl, v) (((bcl)->pmic_ops && (bcl)->irq_pmic_i2c) ? \
-        (bcl)->pmic_ops->cb_get_irq((bcl)->irq_pmic_i2c, v) : -ENODEV)
-#define bcl_cb_clr_irq(bcl) (((bcl)->pmic_ops && (bcl)->irq_pmic_i2c) ? \
-	(bcl)->pmic_ops->cb_clr_irq((bcl)->irq_pmic_i2c) : -ENODEV)
+#define bcl_cb_get_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
+        max77759_get_irq(bcl, v) : max77779_get_irq(bcl, v))
+#define bcl_cb_clr_irq(bcl) (((bcl)->ifpmic == MAX77759) ? \
+        max77759_clr_irq(bcl) : max77779_clr_irq(bcl))
 
 /* This driver determines if HW was throttled due to SMPL/OCP */
 
@@ -110,14 +109,6 @@ enum IFPMIC {
 	MAX77779
 };
 
-typedef int (*pmic_get_irq_fn)(struct i2c_client *client, u8 *irq_val);
-typedef int (*pmic_clr_irq_fn)(struct i2c_client *client);
-
-struct bcl_ifpmic_ops {
-	pmic_get_irq_fn cb_get_irq;
-	pmic_clr_irq_fn cb_clr_irq;
-};
-
 struct qos_throttle_limit {
 	struct freq_qos_request cpu0_max_qos_req;
 	struct freq_qos_request cpu1_max_qos_req;
@@ -175,7 +166,6 @@ struct bcl_device {
 	struct odpm_info *sub_odpm;
 	void __iomem *sysreg_cpucl0;
 	struct power_supply *batt_psy;
-	const struct bcl_ifpmic_ops *pmic_ops;
 
 	struct notifier_block psy_nb;
 	struct bcl_zone *zone[TRIGGERED_SOURCE_MAX];
@@ -276,5 +266,9 @@ void google_bcl_remove_qos(struct bcl_device *bcl_dev);
 void google_init_debugfs(struct bcl_device *bcl_dev);
 int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
 int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
+int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
+int max77759_clr_irq(struct bcl_device *bcl_dev);
+int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
+int max77779_clr_irq(struct bcl_device *bcl_dev);
 
 #endif /* __BCL_H */

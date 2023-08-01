@@ -327,8 +327,7 @@ static void google_warn_work(struct work_struct *work)
 	struct bcl_zone *zone = container_of(work, struct bcl_zone, irq_work.work);
 	struct bcl_device *bcl_dev;
 	int gpio_level;
-	int idx, ret, assert;
-	unsigned int regval;
+	int idx;
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
@@ -508,16 +507,6 @@ static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 
 	return 0;
 }
-
-static const struct bcl_ifpmic_ops bcl_ifpmic_ops_59 = {
-	max77759_get_bcl_irq,
-	max77759_clr_bcl_irq,
-};
-
-static const struct bcl_ifpmic_ops bcl_ifpmic_ops_79 = {
-	max77779_get_bcl_irq,
-	max77779_clr_bcl_irq,
-};
 
 struct bcl_device *google_retrieve_bcl_handle(void)
 {
@@ -780,9 +769,9 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 			}
 			zone->irq_reg = true;
 		}
-		to_conf = false;		
+		to_conf = false;
 	}
-	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO)) 
+	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO))
 		to_conf = false;
 	if (to_conf) {
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
@@ -1086,15 +1075,6 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	u8 val;
 	u32 retval;
 	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl;
-
-        switch (bcl_dev->ifpmic) {
-        case MAX77759:
-		bcl_dev->pmic_ops = &bcl_ifpmic_ops_59;
-		break;
-        case MAX77779:
-		bcl_dev->pmic_ops = &bcl_ifpmic_ops_79;
-		break;
-        }
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
