@@ -3,7 +3,6 @@
 #ifndef __BCL_H
 #define __BCL_H
 
-#if IS_ENABLED(CONFIG_GOOGLE_BCL)
 #include <linux/i2c.h>
 #include <linux/mutex.h>
 #include <linux/power_supply.h>
@@ -277,64 +276,5 @@ void google_bcl_remove_qos(struct bcl_device *bcl_dev);
 void google_init_debugfs(struct bcl_device *bcl_dev);
 int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
 int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
-#else
-struct bcl_device;
-
-static inline int settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setting)
-{
-	return 0;
-}
-
-static inline int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
-{
-	return 0;
-}
-
-int meter_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
-{
-	return 0;
-}
-
-static inline int pmic_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
-{
-	return 0;
-}
-
-int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
-{
-	return 0;
-}
-
-static inline bool bcl_is_subsystem_on(unsigned int addr)
-{
-	return true;
-}
-static inline void bcl_disable_power(void)
-{
-}
-static inline void bcl_enable_power(void)
-{
-}
-static inline void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index,
-					     unsigned int lvl)
-{
-}
-static inline struct bcl_device *google_retrieve_bcl_handle(void)
-{
-	return NULL;
-}
-static inline int google_init_gpu_ratio(struct bcl_device *data)
-{
-	return 0;
-}
-static inline int google_init_tpu_ratio(struct bcl_device *data)
-{
-	return 0;
-}
-static inline int google_init_aur_ratio(struct bcl_device *data)
-{
-	return 0;
-}
-#endif /* IS_ENABLED(CONFIG_GOOGLE_BCL) */
 
 #endif /* __BCL_H */
