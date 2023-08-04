@@ -9,6 +9,7 @@ google_bcl-y			+= google_bcl_sysfs.o
 google_bcl-y			+= google_bcl_util.o
 google_bcl-y			+= google_bcl_qos.o
 google_bcl-y			+= google_bcl_debugfs.o
+google_bcl-y			+= google_bcl_irq_mon.o
 google_bcl-y			+= max77759_vdroop.o
 google_bcl-y			+= max77779_vdroop.o
 
