@@ -21,8 +21,10 @@
 #include "bcl.h"
 #include <dt-bindings/interrupt-controller/zuma.h>
 #include <linux/regulator/pmic_class.h>
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <linux/mfd/samsung/s2mpg14-register.h>
 #include <linux/mfd/samsung/s2mpg15-register.h>
+#endif
 #include <max77759_regs.h>
 #include <max77779_regs.h>
 #include <max777x9_bcl.h>

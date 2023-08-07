@@ -103,6 +103,7 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
  */
 static void update_irq_start_times(struct bcl_device *bcl_dev, int id)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	/* Check if it is a input IRQ */
 	ktime_t start_time = ktime_get();
 	enum BCL_BATT_IRQ irq_ind = id_to_ind(id);
@@ -116,10 +117,12 @@ static void update_irq_start_times(struct bcl_device *bcl_dev, int id)
 		bcl_dev->ifpmic_irq_bins[irq_ind][MMWAVE_BCL_BIN].start_time = start_time;
 	if (bcl_dev->main_pwr_warn_triggered[bcl_dev->rffe_channel])
 		bcl_dev->ifpmic_irq_bins[irq_ind][RFFE_BCL_BIN].start_time = start_time;
+#endif
 }
 
 static void update_irq_end_times(struct bcl_device *bcl_dev, int id)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t end_time;
 	int irq_ind = -1;
 	int i;
@@ -147,6 +150,7 @@ static void update_irq_end_times(struct bcl_device *bcl_dev, int id)
 		if (pwrwarn_irq_triggered)
 			bin_incr_ifpmic(bcl_dev, irq_ind, i, end_time);
 	}
+#endif
 }
 
 static void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
@@ -154,6 +158,7 @@ static void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
 					bool *pwr_warn_triggered,
 					enum CONCURRENT_PWRWARN_IRQ bin_ind)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t start_time;
 	bool is_rf = bcl_dev->rffe_channel == id;
 
@@ -173,12 +178,14 @@ static void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
 				start_time;
 	}
 	bins[id].start_time = start_time;
+#endif
 }
 
 static void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id,
                                     struct irq_duration_stats *bins,
                                     enum CONCURRENT_PWRWARN_IRQ bin_ind)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t end_time;
 	ktime_t time_delta;
 	int i;
@@ -202,6 +209,7 @@ static void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id,
 	else
 		atomic_inc(&(bins[id].gt_10ms_count));
 	bins[id].start_time = 0;
+#endif
 }
 
 static struct power_supply *google_get_power_supply(struct bcl_device *bcl_dev)
@@ -334,8 +342,10 @@ static void google_warn_work(struct work_struct *work)
 
 	if (!google_warn_check(zone)) {
 		zone->bcl_cur_lvl = 0;
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 		if (zone->bcl_qos)
 			google_bcl_qos_update(zone, false);
+#endif
 		if (zone->irq_type == IF_PMIC) {
 			bcl_cb_clr_irq(bcl_dev);
 			update_irq_end_times(bcl_dev, idx);
@@ -649,8 +659,10 @@ static void google_irq_triggered_work(struct work_struct *work)
 	struct bcl_device *bcl_dev;
 	int idx;
 
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, true);
+#endif
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
@@ -686,8 +698,10 @@ static void google_irq_untriggered_work(struct work_struct *work)
 	/* IRQ falling edge */
 	if (zone->irq_type == IF_PMIC)
 		bcl_cb_clr_irq(bcl_dev);
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, false);
+#endif
 	if (zone->irq_type == IF_PMIC)
 		update_irq_end_times(bcl_dev, idx);
 	if (idx == BATOILO)
@@ -805,6 +819,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 
 static void main_pwrwarn_irq_work(struct work_struct *work)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct bcl_device *bcl_dev = container_of(work, struct bcl_device,
 						  main_pwr_irq_work.work);
 	bool revisit_needed = false;
@@ -836,10 +851,12 @@ static void main_pwrwarn_irq_work(struct work_struct *work)
 	if (revisit_needed)
 		mod_delayed_work(system_unbound_wq, &bcl_dev->main_pwr_irq_work,
 				 msecs_to_jiffies(PWRWARN_DELAY_MS));
+#endif
 }
 
 static void sub_pwrwarn_irq_work(struct work_struct *work)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct bcl_device *bcl_dev = container_of(work, struct bcl_device,
 						  sub_pwr_irq_work.work);
 	bool revisit_needed = false;
@@ -871,10 +888,12 @@ static void sub_pwrwarn_irq_work(struct work_struct *work)
 	if (revisit_needed)
 		mod_delayed_work(system_unbound_wq, &bcl_dev->sub_pwr_irq_work,
 				 msecs_to_jiffies(PWRWARN_DELAY_MS));
+#endif
 }
 
 static irqreturn_t sub_pwr_warn_irq_handler(int irq, void *data)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
@@ -898,12 +917,13 @@ static irqreturn_t sub_pwr_warn_irq_handler(int irq, void *data)
 	}
 
 	mutex_unlock(&bcl_dev->sub_odpm->lock);
-
+#endif
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t main_pwr_warn_irq_handler(int irq, void *data)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
@@ -927,7 +947,7 @@ static irqreturn_t main_pwr_warn_irq_handler(int irq, void *data)
 	}
 
 	mutex_unlock(&bcl_dev->main_odpm->lock);
-
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -1034,6 +1054,7 @@ static int get_idx_from_tz(struct bcl_device *bcl_dev, const char *name)
 
 static void google_bcl_parse_qos(struct bcl_device *bcl_dev)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct device_node *np = bcl_dev->device->of_node;
 	struct device_node *child;
 	struct device_node *p_np;
@@ -1067,6 +1088,7 @@ static void google_bcl_parse_qos(struct bcl_device *bcl_dev)
 					 &bcl_dev->zone[idx]->bcl_qos->tpu_limit) != 0)
 			bcl_dev->zone[idx]->bcl_qos->tpu_limit = INT_MAX;
 	}
+#endif
 }
 
 static int intf_pmic_init(struct bcl_device *bcl_dev)
@@ -1236,9 +1258,11 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 	bcl_dev->ready = true;
 	google_bcl_parse_qos(bcl_dev);
 	if (google_bcl_setup_qos(bcl_dev) != 0) {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 		dev_err(bcl_dev->device, "Cannot Initiate QOS\n");
 		google_bcl_remove_qos(bcl_dev);
 		bcl_dev->ready = false;
+#endif
 	}
 
 	if (!bcl_dev->ready)
@@ -1263,8 +1287,13 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 
 static int google_set_main_pmic(struct bcl_device *bcl_dev)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	struct s2mpg14_platform_data *pdata_main;
 	struct s2mpg14_dev *main_dev = NULL;
+#elif IS_ENABLED(CONFIG_SOC_GS101)
+	struct s2mpg10_platform_data *pdata_main;
+	struct s2mpg10_dev *main_dev = NULL;
+#endif
 	u8 val;
 	struct device_node *p_np;
 	struct device_node *np = bcl_dev->device->of_node;
@@ -1420,6 +1449,7 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 		dev_err(bcl_dev->device, "bcl_register fail: PMIC_OVERHEAT\n");
 		return -ENODEV;
 	}
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	for (i = 0; i < S2MPG1415_METER_CHANNEL_MAX; i++) {
 		bcl_dev->main_pwr_warn_irq[i] = bcl_dev->main_irq_base
 				+ S2MPG14_IRQ_PWR_WARN_CH0_INT6 + i;
@@ -1431,6 +1461,7 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 				i, bcl_dev->main_pwr_warn_irq[i], ret);
 		}
 	}
+#endif
 
 
 	return 0;
@@ -1551,6 +1582,7 @@ static int google_bcl_init_instruction(struct bcl_device *bcl_dev)
 
 u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setting)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	int rail_i;
 	s2mpg1415_meter_muxsel muxsel;
 	struct odpm_info *info;
@@ -1582,6 +1614,8 @@ u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setti
 	raw_unit = (u64)setting * resolution;
 	raw_unit = raw_unit * MILLI_TO_MICRO;
 	return (u32)_IQ30_to_int(raw_unit);
+#endif
+        return 0;
 }
 
 static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
@@ -1632,6 +1666,7 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	ret = of_property_read_u32(np, "cpu2_cluster", &val);
 	bcl_dev->cpu2_cluster = ret ? CPU2_CLUSTER_MIN : val;
 
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	/* parse ODPM main limit */
 	p_np = of_get_child_by_name(np, "main_limit");
 	if (p_np) {
@@ -1666,6 +1701,7 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 			}
 		}
 	}
+#endif
 
 	if (bcl_disable_power(SUBSYSTEM_CPU2)) {
 		if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU2,

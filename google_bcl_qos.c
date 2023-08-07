@@ -11,8 +11,10 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <linux/mfd/samsung/s2mpg1415.h>
 #include <linux/mfd/samsung/s2mpg1415-register.h>
+#endif
 #include "bcl.h"
 
 #define CREATE_TRACE_POINTS
@@ -81,6 +83,7 @@ static int init_freq_qos(struct bcl_device *bcl_dev, struct qos_throttle_limit *
 
 int google_bcl_setup_qos(struct bcl_device *bcl_dev)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	int ret, i;
 	struct bcl_zone *zone;
 
@@ -100,11 +103,13 @@ int google_bcl_setup_qos(struct bcl_device *bcl_dev)
 		exynos_pm_qos_add_request(&zone->bcl_qos->gpu_qos_max, PM_QOS_GPU_FREQ_MAX,
 				  	  INT_MAX);
 	}
+#endif
 	return 0;
 }
 
 void google_bcl_remove_qos(struct bcl_device *bcl_dev)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	int i;
 	struct bcl_zone *zone;
 
@@ -119,4 +124,5 @@ void google_bcl_remove_qos(struct bcl_device *bcl_dev)
 		exynos_pm_qos_remove_request(&zone->bcl_qos->gpu_qos_max);
 		zone->bcl_qos = NULL;
 	}
+#endif
 }

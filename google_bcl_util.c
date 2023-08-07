@@ -2,15 +2,23 @@
 /*
  * google_bcl_core.c Google bcl driver
  *
- * Copyright (c) 2022, Google LLC. All rights reserved.
+ * Copyright (c) 2023, Google LLC. All rights reserved.
  *
  */
 
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#include <linux/mfd/samsung/s2mpg10.h>
+#include <linux/mfd/samsung/s2mpg11.h>
+#include <linux/mfd/samsung/s2mpg10-register.h>
+#include <linux/mfd/samsung/s2mpg11-register.h>
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <linux/mfd/samsung/s2mpg1415.h>
 #include <linux/mfd/samsung/s2mpg1415-register.h>
+#endif
+
 #include <soc/google/exynos-cpupm.h>
 #include <soc/google/exynos-pm.h>
 #include <soc/google/exynos-pmu-if.h>
@@ -25,13 +33,25 @@ const unsigned int subsystem_pmu[] = {
 	PMU_ALIVE_AUR_STATES
 };
 
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg10_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg11_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg10_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg11_read_reg(i2c, reg, val)
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg14_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg15_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg14_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg15_read_reg(i2c, reg, val)
+#endif
+
 int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return s2mpg15_write_reg((bcl_dev)->sub_meter_i2c, reg, value);
+		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_meter_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return s2mpg14_write_reg((bcl_dev)->main_meter_i2c, reg, value);
+		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_meter_i2c, reg, value);
 	}
 	return 0;
 }
@@ -40,9 +60,9 @@ int meter_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return s2mpg15_read_reg((bcl_dev)->sub_meter_i2c, reg, value);
+		return PMIC_SUB_READ_REG((bcl_dev)->sub_meter_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return s2mpg14_read_reg((bcl_dev)->main_meter_i2c, reg, value);
+		return PMIC_MAIN_READ_REG((bcl_dev)->main_meter_i2c, reg, value);
 	}
 	return 0;
 }
@@ -51,9 +71,9 @@ int pmic_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return s2mpg15_write_reg((bcl_dev)->sub_pmic_i2c, reg, value);
+		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_meter_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return s2mpg14_write_reg((bcl_dev)->main_pmic_i2c, reg, value);
+		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_meter_i2c, reg, value);
 	}
 	return 0;
 }
@@ -62,9 +82,9 @@ int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return s2mpg15_read_reg((bcl_dev)->sub_pmic_i2c, reg, value);
+		return PMIC_SUB_READ_REG((bcl_dev)->sub_meter_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return s2mpg14_read_reg((bcl_dev)->main_pmic_i2c, reg, value);
+		return PMIC_MAIN_READ_REG((bcl_dev)->main_meter_i2c, reg, value);
 	}
 	return 0;
 }
