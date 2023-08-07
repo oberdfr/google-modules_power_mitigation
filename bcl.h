@@ -239,6 +239,12 @@ struct bcl_device {
 
 	int batoilo_lower_limit;
 	int batoilo_upper_limit;
+	int batoilo2_lower_limit;
+	int batoilo2_upper_limit;
+	u8 batoilo_trig_lvl;
+	u8 batoilo2_trig_lvl;
+	u8 batoilo_bat_open_to;
+	u8 batoilo2_bat_open_to;
 	int pmic_irq;
 
 	enum IFPMIC ifpmic;

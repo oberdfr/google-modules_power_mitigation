@@ -1168,21 +1168,39 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_SYS_UVLO1_CNFG_1, val);
 
-		/* BATOILO1 no VDROOP1/2 */
+		/* BATOILO1 no VDROOP1/2, 64us BATOILO1 BAT_OPEN */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO1_CNFG_3, &val);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 0);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 0);
+		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(val,
+								   bcl_dev->batoilo_bat_open_to);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO1_CNFG_3, val);
-		/* BATOILO2 = VDROOP1 */
+
+		/* BATOILO2 = VDROOP1, 36ms BATOILO2 BAT_OPEN */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO2_CNFG_3, &val);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val, 1);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 0);
+		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(val,
+								   bcl_dev->batoilo2_bat_open_to);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO2_CNFG_3, val);
 
+		/* BATOILO1 8A THRESHOLD */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO1_CNFG_0, &val);
+		val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(val, bcl_dev->batoilo_trig_lvl);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO1_CNFG_0, val);
+
+		/* BATOILO2 5A THRESHOLD */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO2_CNFG_0, &val);
+		val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(val, bcl_dev->batoilo2_trig_lvl);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO2_CNFG_0, val);
 	}
 	return ret;
 }
@@ -1190,7 +1208,6 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 {
 	int i, ret = 0;
-	u8 val;
 	u32 retval;
 	struct device_node *p_np;
 	struct device_node *np = bcl_dev->device->of_node;
@@ -1207,14 +1224,32 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 			bcl_dev->ifpmic = MAX77779;
 		else
 			bcl_dev->ifpmic = MAX77759;
-		ret = of_property_read_u32(p_np, "batoilo_lower", &retval);
-		bcl_dev->batoilo_lower_limit = ret ? BO_LOWER_LIMIT : val;
-		ret = of_property_read_u32(p_np, "batoilo_upper", &retval);
-		bcl_dev->batoilo_upper_limit = ret ? BO_UPPER_LIMIT : val;
 		bcl_dev->intf_pmic_i2c = i2c;
 		bcl_dev->irq_pmic_i2c = i2c;
 	}
 	of_node_put(p_np);
+
+	if (np) {
+		ret = of_property_read_u32(np, "batoilo_lower", &retval);
+		bcl_dev->batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
+		ret = of_property_read_u32(np, "batoilo_upper", &retval);
+		bcl_dev->batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
+		ret = of_property_read_u32(np, "batoilo2_lower", &retval);
+		bcl_dev->batoilo2_lower_limit = ret ? BO_LOWER_LIMIT : retval;
+		ret = of_property_read_u32(np, "batoilo2_upper", &retval);
+		bcl_dev->batoilo2_upper_limit = ret ? BO_UPPER_LIMIT : retval;
+		ret = of_property_read_u32(np, "batoilo_trig_lvl", &retval);
+		retval = ret ? BO_LIMIT : retval;
+		bcl_dev->batoilo_trig_lvl = (retval - bcl_dev->batoilo_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo2_trig_lvl", &retval);
+		retval = ret ? BO_LIMIT : retval;
+		bcl_dev->batoilo2_trig_lvl = (retval - bcl_dev->batoilo2_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo_bat_open_to", &retval);
+		bcl_dev->batoilo_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo2_bat_open_to", &retval);
+		bcl_dev->batoilo2_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
+	}
+
 	if (!bcl_dev->intf_pmic_i2c) {
 		dev_err(bcl_dev->device, "Interface PMIC device not found\n");
 		return -ENODEV;
