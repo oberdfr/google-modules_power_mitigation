@@ -1034,8 +1034,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                 MAX77779_BAT_OILO1_CNFG_3, &val);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 0);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 0);
-		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(val,
-								   bcl_dev->batoilo_bat_open_to);
+		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_bat_open_to);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO1_CNFG_3, val);
 
@@ -1044,24 +1044,84 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                 MAX77779_BAT_OILO2_CNFG_3, &val);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val, 1);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 0);
-		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(val,
-								   bcl_dev->batoilo2_bat_open_to);
+		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_bat_open_to);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO2_CNFG_3, val);
 
 		/* BATOILO1 8A THRESHOLD */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO1_CNFG_0, &val);
-		val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(val, bcl_dev->batoilo_trig_lvl);
+		val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_trig_lvl);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO1_CNFG_0, val);
 
 		/* BATOILO2 5A THRESHOLD */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO2_CNFG_0, &val);
-		val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(val, bcl_dev->batoilo2_trig_lvl);
+		val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_trig_lvl);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_BAT_OILO2_CNFG_0, val);
+
+		/* BATOILO INT and VDROOP1 REL and DET */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO1_CNFG_1, &val);
+		val = _max77779_bat_oilo1_cnfg_1_bat_oilo1_rel_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
+		val = _max77779_bat_oilo1_cnfg_1_bat_oilo1_det_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO1_CNFG_1, val);
+
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO1_CNFG_2, &val);
+		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_rel_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
+		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_det_set(
+						 val, bcl_dev->batt_irq_conf1.batoilo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO1_CNFG_2, val);
+
+		/* BATOILO2 INT and VDROOP2 REL and DET */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO2_CNFG_1, &val);
+		val = _max77779_bat_oilo2_cnfg_1_bat_oilo2_rel_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
+		val = _max77779_bat_oilo2_cnfg_1_bat_oilo2_det_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO2_CNFG_1, val);
+
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_BAT_OILO2_CNFG_2, &val);
+		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_rel_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
+		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_det_set(
+						 val, bcl_dev->batt_irq_conf2.batoilo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_BAT_OILO2_CNFG_2, val);
+
+		/* UVLO1 INT and VDROOP1 REL and DET */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_SYS_UVLO1_CNFG_1, &val);
+		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_rel_set(
+						 val, bcl_dev->batt_irq_conf1.uvlo_rel);
+		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_det_set(
+						 val, bcl_dev->batt_irq_conf1.uvlo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_SYS_UVLO1_CNFG_1, val);
+
+		/* UVLO2 INT and VDROOP1 REL and DET */
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_SYS_UVLO2_CNFG_1, &val);
+		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_rel_set(
+						 val, bcl_dev->batt_irq_conf2.uvlo_rel);
+		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_det_set(
+						 val, bcl_dev->batt_irq_conf2.uvlo_det);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
 	}
 	return ret;
 }
@@ -1092,23 +1152,39 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 
 	if (np) {
 		ret = of_property_read_u32(np, "batoilo_lower", &retval);
-		bcl_dev->batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
+		bcl_dev->batt_irq_conf1.batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
 		ret = of_property_read_u32(np, "batoilo_upper", &retval);
-		bcl_dev->batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
+		bcl_dev->batt_irq_conf1.batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
 		ret = of_property_read_u32(np, "batoilo2_lower", &retval);
-		bcl_dev->batoilo2_lower_limit = ret ? BO_LOWER_LIMIT : retval;
+		bcl_dev->batt_irq_conf2.batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
 		ret = of_property_read_u32(np, "batoilo2_upper", &retval);
-		bcl_dev->batoilo2_upper_limit = ret ? BO_UPPER_LIMIT : retval;
+		bcl_dev->batt_irq_conf2.batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
 		ret = of_property_read_u32(np, "batoilo_trig_lvl", &retval);
 		retval = ret ? BO_LIMIT : retval;
-		bcl_dev->batoilo_trig_lvl = (retval - bcl_dev->batoilo_lower_limit) / BO_STEP;
+		bcl_dev->batt_irq_conf1.batoilo_trig_lvl = (retval - bcl_dev->batoilo_lower_limit) / BO_STEP;
 		ret = of_property_read_u32(np, "batoilo2_trig_lvl", &retval);
 		retval = ret ? BO_LIMIT : retval;
-		bcl_dev->batoilo2_trig_lvl = (retval - bcl_dev->batoilo2_lower_limit) / BO_STEP;
+		bcl_dev->batt_irq_conf2.batoilo_trig_lvl = (retval - bcl_dev->batoilo2_lower_limit) / BO_STEP;
 		ret = of_property_read_u32(np, "batoilo_bat_open_to", &retval);
-		bcl_dev->batoilo_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
+		bcl_dev->batt_irq_conf1.batoilo_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
 		ret = of_property_read_u32(np, "batoilo2_bat_open_to", &retval);
-		bcl_dev->batoilo2_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
+		bcl_dev->batt_irq_conf2.batoilo_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo_rel", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_rel = ret ? BO_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo2_rel", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_rel = ret ? BO_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo_det", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_det = ret ? BO_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo2_det", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_det = ret ? BO_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "uvlo1_det", &retval);
+		bcl_dev->batt_irq_conf1.uvlo_det = ret ? UV_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "uvlo2_det", &retval);
+		bcl_dev->batt_irq_conf2.uvlo_det = ret ? UV_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "uvlo1_rel", &retval);
+		bcl_dev->batt_irq_conf1.uvlo_rel = ret ? UV_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "uvlo2_rel", &retval);
+		bcl_dev->batt_irq_conf2.uvlo_rel = ret ? UV_INT_DET_DEFAULT : retval;
 	}
 
 	if (!bcl_dev->intf_pmic_i2c) {

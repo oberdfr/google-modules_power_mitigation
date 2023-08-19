@@ -157,6 +157,17 @@ struct bcl_core_conf {
 	void __iomem *base_mem;
 };
 
+struct bcl_batt_irq_conf {
+	int batoilo_lower_limit;
+	int batoilo_upper_limit;
+	u8 batoilo_trig_lvl;
+	u8 batoilo_bat_open_to;
+	u8 batoilo_rel;
+	u8 batoilo_det;
+	u8 uvlo_rel;
+	u8 uvlo_det;
+};
+
 struct bcl_device {
 	struct device *device;
 	struct device *main_dev;
@@ -241,10 +252,8 @@ struct bcl_device {
 	int batoilo_upper_limit;
 	int batoilo2_lower_limit;
 	int batoilo2_upper_limit;
-	u8 batoilo_trig_lvl;
-	u8 batoilo2_trig_lvl;
-	u8 batoilo_bat_open_to;
-	u8 batoilo2_bat_open_to;
+	struct bcl_batt_irq_conf batt_irq_conf1;
+	struct bcl_batt_irq_conf batt_irq_conf2;
 	int pmic_irq;
 
 	enum IFPMIC ifpmic;
