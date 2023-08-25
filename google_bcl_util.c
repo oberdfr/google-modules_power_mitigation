@@ -71,9 +71,9 @@ int pmic_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_meter_i2c, reg, value);
+		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_pmic_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_meter_i2c, reg, value);
+		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_pmic_i2c, reg, value);
 	}
 	return 0;
 }
@@ -82,9 +82,9 @@ int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 {
 	switch (pmic) {
 	case CORE_PMIC_SUB:
-		return PMIC_SUB_READ_REG((bcl_dev)->sub_meter_i2c, reg, value);
+		return PMIC_SUB_READ_REG((bcl_dev)->sub_pmic_i2c, reg, value);
 	case CORE_PMIC_MAIN:
-		return PMIC_MAIN_READ_REG((bcl_dev)->main_meter_i2c, reg, value);
+		return PMIC_MAIN_READ_REG((bcl_dev)->main_pmic_i2c, reg, value);
 	}
 	return 0;
 }
