@@ -11,6 +11,34 @@
 #include <max777x9_bcl.h>
 #include "bcl.h"
 
+int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable)
+{
+	int ret;
+	u8 val, batoilo1_lvl, batoilo2_lvl;
+
+	if (wlc_tx_enable) {
+		batoilo1_lvl = bcl_dev->batt_irq_conf1.batoilo_wlc_trig_lvl;
+		batoilo2_lvl = bcl_dev->batt_irq_conf2.batoilo_wlc_trig_lvl;
+	} else {
+		batoilo1_lvl = bcl_dev->batt_irq_conf1.batoilo_trig_lvl;
+		batoilo2_lvl = bcl_dev->batt_irq_conf2.batoilo_trig_lvl;
+	}
+	ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO1_CNFG_0, &val);
+	if (ret < 0)
+		return ret;
+	val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(val, batoilo1_lvl);
+	ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO1_CNFG_0, val);
+	if (ret < 0)
+		return ret;
+	ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO2_CNFG_0, &val);
+	if (ret < 0)
+		return ret;
+	val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(val, batoilo2_lvl);
+	ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO2_CNFG_0, val);
+
+	return ret;
+}
+
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 {
 	unsigned int vdroop_int;

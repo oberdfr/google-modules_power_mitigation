@@ -1048,7 +1048,7 @@ static ssize_t batoilo_lvl_show(struct device *dev, struct device_attribute *att
 	if (!bcl_dev->intf_pmic_i2c)
 		return -EBUSY;
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
-	batoilo1_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
+	batoilo1_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO1]->bcl_lvl = batoilo1_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo1_lvl);
 }
@@ -1069,12 +1069,14 @@ static ssize_t batoilo_lvl_store(struct device *dev,
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO1])
 		return -EIO;
-	if (value < bcl_dev->batoilo_lower_limit || value > bcl_dev->batoilo_upper_limit) {
+	if (value < bcl_dev->batt_irq_conf1.batoilo_lower_limit ||
+	    value > bcl_dev->batt_irq_conf1.batoilo_upper_limit) {
 		dev_err(bcl_dev->device, "BATOILO1 %d outside of range %d - %d mA.", value,
-			bcl_dev->batoilo_lower_limit, bcl_dev->batoilo_upper_limit);
+			bcl_dev->batt_irq_conf1.batoilo_lower_limit,
+			bcl_dev->batt_irq_conf1.batoilo_upper_limit);
 		return -EINVAL;
 	}
-	lvl = (value - bcl_dev->batoilo_lower_limit) / BO_STEP;
+	lvl = (value - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
 	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO1);
 	if (ret)
 		return ret;
@@ -1103,7 +1105,7 @@ static ssize_t batoilo2_lvl_show(struct device *dev, struct device_attribute *at
 	if (!bcl_dev->intf_pmic_i2c)
 		return -EBUSY;
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
-	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batoilo2_lower_limit;
+	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf2.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO2]->bcl_lvl = batoilo2_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo2_lvl);
 }
@@ -1124,12 +1126,14 @@ static ssize_t batoilo2_lvl_store(struct device *dev,
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO2])
 		return -EIO;
-	if (value < bcl_dev->batoilo2_lower_limit || value > bcl_dev->batoilo2_upper_limit) {
+	if (value < bcl_dev->batt_irq_conf2.batoilo_lower_limit ||
+	    value > bcl_dev->batt_irq_conf2.batoilo_upper_limit) {
 		dev_err(bcl_dev->device, "BATOILO2 %d outside of range %d - %d mA.", value,
-			bcl_dev->batoilo2_lower_limit, bcl_dev->batoilo2_upper_limit);
+			bcl_dev->batt_irq_conf2.batoilo_lower_limit,
+			bcl_dev->batt_irq_conf2.batoilo_upper_limit);
 		return -EINVAL;
 	}
-	lvl = (value - bcl_dev->batoilo2_lower_limit) / BO_STEP;
+	lvl = (value - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
 	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO2);
 	if (ret)
 		return ret;

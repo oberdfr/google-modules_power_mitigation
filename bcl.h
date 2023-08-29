@@ -161,6 +161,7 @@ struct bcl_batt_irq_conf {
 	int batoilo_lower_limit;
 	int batoilo_upper_limit;
 	u8 batoilo_trig_lvl;
+	u8 batoilo_wlc_trig_lvl;
 	u8 batoilo_bat_open_to;
 	u8 batoilo_rel;
 	u8 batoilo_det;
@@ -248,15 +249,13 @@ struct bcl_device {
 	int cpu1_cluster;
 	int cpu2_cluster;
 
-	int batoilo_lower_limit;
-	int batoilo_upper_limit;
-	int batoilo2_lower_limit;
-	int batoilo2_upper_limit;
 	struct bcl_batt_irq_conf batt_irq_conf1;
 	struct bcl_batt_irq_conf batt_irq_conf2;
 	int pmic_irq;
 
 	enum IFPMIC ifpmic;
+
+	struct gvotable_election *toggle_wlc;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
@@ -285,5 +284,7 @@ int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77759_clr_irq(struct bcl_device *bcl_dev);
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77779_clr_irq(struct bcl_device *bcl_dev);
-
+int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
+int google_bcl_setup_votable(struct bcl_device *bcl_dev);
+void google_bcl_remove_votable(struct bcl_device *bcl_dev);
 #endif /* __BCL_H */

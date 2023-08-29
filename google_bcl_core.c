@@ -961,9 +961,9 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
-	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
+	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
-	batoilo_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
+	batoilo_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
 	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
 	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 
@@ -1161,10 +1161,20 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 		bcl_dev->batt_irq_conf2.batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
 		ret = of_property_read_u32(np, "batoilo_trig_lvl", &retval);
 		retval = ret ? BO_LIMIT : retval;
-		bcl_dev->batt_irq_conf1.batoilo_trig_lvl = (retval - bcl_dev->batoilo_lower_limit) / BO_STEP;
+		bcl_dev->batt_irq_conf1.batoilo_trig_lvl =
+				(retval - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
 		ret = of_property_read_u32(np, "batoilo2_trig_lvl", &retval);
 		retval = ret ? BO_LIMIT : retval;
-		bcl_dev->batt_irq_conf2.batoilo_trig_lvl = (retval - bcl_dev->batoilo2_lower_limit) / BO_STEP;
+		bcl_dev->batt_irq_conf2.batoilo_trig_lvl =
+				(retval - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo_wlc_trig_lvl", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_wlc_trig_lvl = ret ?
+				bcl_dev->batt_irq_conf1.batoilo_trig_lvl :
+				(retval - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo2_wlc_trig_lvl", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_wlc_trig_lvl = ret ?
+				bcl_dev->batt_irq_conf2.batoilo_trig_lvl :
+				(retval - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
 		ret = of_property_read_u32(np, "batoilo_bat_open_to", &retval);
 		bcl_dev->batt_irq_conf1.batoilo_bat_open_to = ret ? BO_BAT_OPEN_TO_DEFAULT : retval;
 		ret = of_property_read_u32(np, "batoilo2_bat_open_to", &retval);
@@ -1758,6 +1768,8 @@ static int google_bcl_probe(struct platform_device *pdev)
 	bcl_dev->enabled = true;
 	google_init_debugfs(bcl_dev);
 
+	google_bcl_setup_votable(bcl_dev);
+
 	return 0;
 
 bcl_soc_probe_exit:
@@ -1773,6 +1785,7 @@ static int google_bcl_remove(struct platform_device *pdev)
 	debugfs_remove_recursive(bcl_dev->debug_entry);
 	google_bcl_remove_thermal(bcl_dev);
 	google_bcl_remove_qos(bcl_dev);
+	google_bcl_remove_votable(bcl_dev);
 
 	return 0;
 }
