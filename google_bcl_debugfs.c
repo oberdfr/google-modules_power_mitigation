@@ -134,6 +134,7 @@ static int set_tpuclk(void *data, u64 val)
 	return set_xclk(data, val, SUBSYSTEM_TPU);
 }
 
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 static int get_modem_gpio1(void *data, u64 *val)
 {
 	struct bcl_device *bcl_dev = data;
@@ -165,6 +166,7 @@ static int set_modem_gpio2(void *data, u64 val)
 	gpio_set_value(bcl_dev->modem_gpio2_pin, val);
 	return 0;
 }
+#endif
 
 static int get_add_perph(void *data, u64 *val)
 {
@@ -271,8 +273,10 @@ DEFINE_SIMPLE_ATTRIBUTE(cpu1_clkout_fops, get_cpu1clk, set_cpu1clk, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(cpu2_clkout_fops, get_cpu2clk, set_cpu2clk, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(gpu_clkout_fops, get_gpuclk, set_gpuclk, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(tpu_clkout_fops, get_tpuclk, set_tpuclk, "0x%llx\n");
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 DEFINE_SIMPLE_ATTRIBUTE(modem_gpio1_fops, get_modem_gpio1, set_modem_gpio1, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(modem_gpio2_fops, get_modem_gpio2, set_modem_gpio2, "0x%llx\n");
+#endif
 DEFINE_SIMPLE_ATTRIBUTE(add_perph_fops, get_add_perph, set_add_perph, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(add_addr_fops, get_add_addr, set_add_addr, "0x%llx\n");
 DEFINE_SIMPLE_ATTRIBUTE(add_data_fops, get_add_data, set_add_data, "0x%llx\n");
@@ -286,8 +290,10 @@ void google_init_debugfs(struct bcl_device *bcl_dev)
 	debugfs_create_file("cpu2_clk_out", 0644, bcl_dev->debug_entry, bcl_dev, &cpu2_clkout_fops);
 	debugfs_create_file("gpu_clk_out", 0644, bcl_dev->debug_entry, bcl_dev, &gpu_clkout_fops);
 	debugfs_create_file("tpu_clk_out", 0644, bcl_dev->debug_entry, bcl_dev, &tpu_clkout_fops);
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 	debugfs_create_file("modem_gpio1", 0644, bcl_dev->debug_entry, bcl_dev, &modem_gpio1_fops);
 	debugfs_create_file("modem_gpio2", 0644, bcl_dev->debug_entry, bcl_dev, &modem_gpio2_fops);
+#endif
 	dentry_add = debugfs_create_dir("add", bcl_dev->debug_entry);
 	debugfs_create_file("perph", 0600, dentry_add, bcl_dev, &add_perph_fops);
 	debugfs_create_file("addr", 0600, dentry_add, bcl_dev, &add_addr_fops);

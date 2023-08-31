@@ -537,8 +537,10 @@ static void google_irq_triggered_work(struct work_struct *work)
 	if (zone->irq_type == IF_PMIC)
 		update_irq_start_times(bcl_dev, idx);
 
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 	if (idx == BATOILO)
 		gpio_set_value(bcl_dev->modem_gpio2_pin, 1);
+#endif
 
 	if (bcl_dev->batt_psy_initialized) {
 		atomic_inc(&zone->bcl_cnt);
@@ -571,8 +573,10 @@ static void google_irq_untriggered_work(struct work_struct *work)
 #endif
 	if (zone->irq_type == IF_PMIC)
 		update_irq_end_times(bcl_dev, idx);
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 	if (idx == BATOILO)
 		gpio_set_value(bcl_dev->modem_gpio2_pin, 0);
+#endif
 
 	update_tz(zone, idx, false);
 }
@@ -702,8 +706,10 @@ static void main_pwrwarn_irq_work(struct work_struct *work)
 		bcl_dev->main_pwr_warn_triggered[i] = (measurement > bcl_dev->main_setting[i]);
 		if (!revisit_needed)
 			revisit_needed = bcl_dev->main_pwr_warn_triggered[i];
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 		if ((!revisit_needed) && (i == bcl_dev->rffe_channel))
 			gpio_set_value(bcl_dev->modem_gpio1_pin, 0);
+#endif
 		if (!bcl_dev->main_pwr_warn_triggered[i])
 			pwrwarn_update_end_time(bcl_dev, i, bcl_dev->pwrwarn_main_irq_bins,
 						RFFE_BCL_BIN);
@@ -739,8 +745,10 @@ static void sub_pwrwarn_irq_work(struct work_struct *work)
 		bcl_dev->sub_pwr_warn_triggered[i] = (measurement > bcl_dev->sub_setting[i]);
 		if (!revisit_needed)
 			revisit_needed = bcl_dev->sub_pwr_warn_triggered[i];
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 		if ((!revisit_needed) && (i == bcl_dev->rffe_channel))
 			gpio_set_value(bcl_dev->modem_gpio1_pin, 0);
+#endif
 		if (!bcl_dev->sub_pwr_warn_triggered[i])
 			pwrwarn_update_end_time(bcl_dev, i, bcl_dev->pwrwarn_sub_irq_bins,
 						MMWAVE_BCL_BIN);
@@ -770,8 +778,10 @@ static irqreturn_t sub_pwr_warn_irq_handler(int irq, void *data)
 		if (bcl_dev->sub_pwr_warn_irq[i] == irq) {
 			bcl_dev->sub_pwr_warn_triggered[i] = 1;
 			/* Check for Modem MMWAVE */
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 			if (i == bcl_dev->rffe_channel)
 				gpio_set_value(bcl_dev->modem_gpio1_pin, 1);
+#endif
 
 			/* Setup Timer to clear the triggered */
 			mod_delayed_work(system_unbound_wq, &bcl_dev->sub_pwr_irq_work,
@@ -800,8 +810,10 @@ static irqreturn_t main_pwr_warn_irq_handler(int irq, void *data)
 		if (bcl_dev->main_pwr_warn_irq[i] == irq) {
 			bcl_dev->main_pwr_warn_triggered[i] = 1;
 			/* Check for Modem RFFE */
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 			if (i == bcl_dev->rffe_channel)
 				gpio_set_value(bcl_dev->modem_gpio1_pin, 1);
+#endif
 
 			/* Setup Timer to clear the triggered */
 			mod_delayed_work(system_unbound_wq, &bcl_dev->main_pwr_irq_work,
@@ -1643,8 +1655,10 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	bcl_dev->irq_delay = ret ? IRQ_ENABLE_DELAY_MS : val;
 	bcl_dev->vdroop1_pin = of_get_gpio(np, 0);
 	bcl_dev->vdroop2_pin = of_get_gpio(np, 1);
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 	bcl_dev->modem_gpio1_pin = of_get_gpio(np, 2);
 	bcl_dev->modem_gpio2_pin = of_get_gpio(np, 3);
+#endif
 	ret = of_property_read_u32(np, "rffe_channel", &val);
 	bcl_dev->rffe_channel = ret ? 11 : val;
 	ret = of_property_read_u32(np, "cpu0_cluster", &val);
@@ -1708,6 +1722,7 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 		dev_err(bcl_dev->device, "CPU0 Address is NULL\n");
 }
 
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 static int google_bcl_configure_modem(struct bcl_device *bcl_dev)
 {
 	struct pinctrl *modem_pinctrl;
@@ -1741,6 +1756,7 @@ static int google_bcl_configure_modem(struct bcl_device *bcl_dev)
 	}
 	return 0;
 }
+#endif
 
 static int google_bcl_probe(struct platform_device *pdev)
 {
@@ -1764,7 +1780,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	google_set_main_pmic(bcl_dev);
 	google_set_sub_pmic(bcl_dev);
 	google_bcl_parse_dtree(bcl_dev);
+#if IS_ENABLED(CONFIG_BCL_MODEM)
 	google_bcl_configure_modem(bcl_dev);
+#endif
 
 	ret = google_init_fs(bcl_dev);
 	if (ret < 0)
