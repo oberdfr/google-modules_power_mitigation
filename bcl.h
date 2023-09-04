@@ -256,6 +256,9 @@ struct bcl_device {
 	enum IFPMIC ifpmic;
 
 	struct gvotable_election *toggle_wlc;
+
+	unsigned int triggered_idx;
+	struct mutex data_logging_lock;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);

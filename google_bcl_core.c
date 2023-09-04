@@ -148,8 +148,14 @@ static irqreturn_t irq_handler(int irq, void *data)
 		idx = irq_val;
 		zone = bcl_dev->zone[idx];
 	}
-	if (gpio_level == zone->polarity)
+	if (gpio_level == zone->polarity) {
+		mutex_lock(&bcl_dev->data_logging_lock);
+		bcl_dev->triggered_idx = idx;
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "br_stats", "triggered_idx");
+		mutex_unlock(&bcl_dev->data_logging_lock);
+
 		mod_delayed_work(system_highpri_wq, &zone->irq_triggered_work, 0);
+	}
 	else
 		mod_delayed_work(system_highpri_wq, &zone->irq_untriggered_work, 0);
 exit:
@@ -1769,6 +1775,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	google_init_debugfs(bcl_dev);
 
 	google_bcl_setup_votable(bcl_dev);
+
+	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
+	mutex_init(&bcl_dev->data_logging_lock);
 
 	return 0;
 

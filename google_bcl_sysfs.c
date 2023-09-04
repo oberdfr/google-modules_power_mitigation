@@ -2857,6 +2857,21 @@ static struct attribute *irq_dur_cnt_attrs[] = {
 	NULL,
 };
 
+static ssize_t triggered_idx_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d\n", bcl_dev->triggered_idx);
+}
+
+static DEVICE_ATTR(triggered_idx, 0444, triggered_idx_show, NULL);
+
+static struct attribute *br_stats_attrs[] = {
+	&dev_attr_triggered_idx.attr,
+	NULL,
+};
+
 static const struct attribute_group irq_dur_cnt_group = {
 	.attrs = irq_dur_cnt_attrs,
 	.name = "irq_dur_cnt",
@@ -2865,6 +2880,11 @@ static const struct attribute_group irq_dur_cnt_group = {
 static const struct attribute_group qos_group = {
 	.attrs = qos_attrs,
 	.name = "qos",
+};
+
+static const struct attribute_group br_stats_group = {
+	.attrs = br_stats_attrs,
+	.name = "br_stats",
 };
 
 const struct attribute_group *mitigation_groups[] = {
@@ -2882,5 +2902,6 @@ const struct attribute_group *mitigation_groups[] = {
 	&sub_pwrwarn_group,
 	&irq_dur_cnt_group,
 	&qos_group,
+	&br_stats_group,
 	NULL,
 };
