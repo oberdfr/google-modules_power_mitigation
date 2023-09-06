@@ -123,6 +123,35 @@ static void update_tz(struct bcl_zone *zone, int idx, bool triggered)
 		thermal_zone_device_update(zone->tz, THERMAL_EVENT_UNSPECIFIED);
 }
 
+static int event_cnt_read(struct bcl_device *bcl_dev, int idx, unsigned int *val)
+{
+	int ret;
+	unsigned int reg;
+
+	switch (idx) {
+	case UVLO1:
+		reg = MAX77779_PMIC_EVENT_CNT_UVLO0;
+		break;
+	case UVLO2:
+		reg = MAX77779_PMIC_EVENT_CNT_UVLO1;
+		break;
+	case BATOILO1:
+		reg = MAX77779_PMIC_EVENT_CNT_OILO0;
+		break;
+	case BATOILO2:
+		reg = MAX77779_PMIC_EVENT_CNT_OILO1;
+		break;
+	}
+
+	/* Read to clear register */
+	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c, reg, val);
+	if (ret < 0) {
+		dev_err(bcl_dev->device, "event_cnt_read: %d, fail\n", reg);
+		return -ENODEV;
+	}
+	return 0;
+}
+
 static irqreturn_t irq_handler(int irq, void *data)
 {
 	struct bcl_zone *zone = data;
@@ -203,6 +232,7 @@ static void google_warn_work(struct work_struct *work)
 	struct bcl_device *bcl_dev;
 	int gpio_level;
 	int idx;
+	unsigned int reg;
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
@@ -216,6 +246,9 @@ static void google_warn_work(struct work_struct *work)
 		if (zone->irq_type == IF_PMIC) {
 			bcl_cb_clr_irq(bcl_dev);
 			update_irq_end_times(bcl_dev, idx);
+
+			if (idx >= UVLO1 && idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
+				event_cnt_read(bcl_dev, idx, &reg);
 		}
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
@@ -975,7 +1008,7 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	int ret;
 	u8 val;
 	u32 retval;
-	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl;
+	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl, regval;
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
@@ -1140,6 +1173,33 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf2.uvlo_det);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
+
+		/* Read, save, and clear event counters */
+		ret = event_cnt_read(bcl_dev, UVLO1, &regval);
+		if (ret == 0)
+			bcl_dev->evt_cnt.uvlo1 = regval;
+
+		ret = event_cnt_read(bcl_dev, UVLO2, &regval);
+		if (ret == 0)
+			bcl_dev->evt_cnt.uvlo2 = regval;
+
+		ret = event_cnt_read(bcl_dev, BATOILO1, &regval);
+		if (ret == 0)
+			bcl_dev->evt_cnt.batoilo1 = regval;
+
+		ret = event_cnt_read(bcl_dev, BATOILO2, &regval);
+		if (ret == 0)
+			bcl_dev->evt_cnt.batoilo2 = regval;
+
+		/* Enable event counter if it is not enabled */
+		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+						 MAX77779_PMIC_EVENT_CNT_CFG, &retval);
+		retval = _max77779_pmic_event_cnt_cfg_enable_set(
+						 retval, bcl_dev->evt_cnt.enable);
+		retval = _max77779_pmic_event_cnt_cfg_sample_rate_set(
+						 retval, bcl_dev->evt_cnt.rate);
+		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+						  MAX77779_PMIC_EVENT_CNT_CFG, retval);
 	}
 	return ret;
 }
@@ -1213,6 +1273,10 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 		bcl_dev->batt_irq_conf1.uvlo_rel = ret ? UV_INT_DET_DEFAULT : retval;
 		ret = of_property_read_u32(np, "uvlo2_rel", &retval);
 		bcl_dev->batt_irq_conf2.uvlo_rel = ret ? UV_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "evt_cnt_enable", &retval);
+		bcl_dev->evt_cnt.enable = ret ? EVT_CNT_ENABLE_DEFAULT : retval;
+		ret = of_property_read_u32(np, "evt_cnt_rate", &retval);
+		bcl_dev->evt_cnt.rate = ret ? EVT_CNT_RATE_DEFAULT : retval;
 	}
 
 	if (!bcl_dev->intf_pmic_i2c) {

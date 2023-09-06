@@ -169,6 +169,15 @@ struct bcl_batt_irq_conf {
 	u8 uvlo_det;
 };
 
+struct bcl_evt_count {
+	unsigned int uvlo1;
+	unsigned int uvlo2;
+	unsigned int batoilo1;
+	unsigned int batoilo2;
+	u8 enable;
+	u8 rate;
+};
+
 struct bcl_device {
 	struct device *device;
 	struct device *main_dev;
@@ -261,6 +270,7 @@ struct bcl_device {
 
 	unsigned int triggered_idx;
 	struct mutex data_logging_lock;
+	struct bcl_evt_count evt_cnt;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);

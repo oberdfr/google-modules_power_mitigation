@@ -740,6 +740,46 @@ static ssize_t sub_offsrc2_show(struct device *dev, struct device_attribute *att
 
 static DEVICE_ATTR_RO(sub_offsrc2);
 
+static ssize_t evt_cnt_uvlo1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.uvlo1);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_uvlo1);
+
+static ssize_t evt_cnt_uvlo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.uvlo2);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_uvlo2);
+
+static ssize_t evt_cnt_batoilo1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.batoilo1);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_batoilo1);
+
+static ssize_t evt_cnt_batoilo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.batoilo2);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_batoilo2);
+
 static ssize_t pwronsrc_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -767,6 +807,10 @@ static struct attribute *instr_attrs[] = {
 	&dev_attr_main_offsrc2.attr,
 	&dev_attr_sub_offsrc1.attr,
 	&dev_attr_sub_offsrc2.attr,
+	&dev_attr_evt_cnt_uvlo1.attr,
+	&dev_attr_evt_cnt_uvlo2.attr,
+	&dev_attr_evt_cnt_batoilo1.attr,
+	&dev_attr_evt_cnt_batoilo2.attr,
 	&dev_attr_pwronsrc.attr,
 	&dev_attr_ready.attr,
 	&dev_attr_irq_delay.attr,
