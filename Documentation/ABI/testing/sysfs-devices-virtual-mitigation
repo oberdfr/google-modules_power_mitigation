@@ -240,4 +240,5 @@ Contact:	"George Lee" <geolee@google.com>
 		"Sam Ou" <samou@google.com>
 Description:
 		This directory contains the brownout information.
-		- triggered_idx: the brownout event index (support sysfs_notify)
+		- triggered_idx: brownout event index (support sysfs_notify)
+		- stats: brownout information (see uapi/brownout_stats.h)
