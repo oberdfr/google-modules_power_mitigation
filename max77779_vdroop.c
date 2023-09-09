@@ -70,15 +70,18 @@ int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 	return ret;
 }
 
-int max77779_clr_irq(struct bcl_device *bcl_dev)
+int max77779_clr_irq(struct bcl_device *bcl_dev, int idx)
 {
 	u8 irq_val = 0;
 	unsigned int chg_int = 0;
 	int ret;
 
-	if (max77779_get_irq(bcl_dev, &irq_val) != 0)
-		return IRQ_NONE;
-
+	if (idx != NOT_USED)
+		irq_val = idx;
+	else {
+		if (max77779_get_irq(bcl_dev, &irq_val) != 0)
+			return IRQ_NONE;
+	}
 	if (irq_val == UVLO2)
 		chg_int = MAX77779_PMIC_VDROOP_INT_SYS_UVLO2_INT_MASK;
 	else if (irq_val == UVLO1)

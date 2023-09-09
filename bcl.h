@@ -15,8 +15,8 @@
 
 #define bcl_cb_get_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
         max77759_get_irq(bcl, v) : max77779_get_irq(bcl, v))
-#define bcl_cb_clr_irq(bcl) (((bcl)->ifpmic == MAX77759) ? \
-        max77759_clr_irq(bcl) : max77779_clr_irq(bcl))
+#define bcl_cb_clr_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
+        max77759_clr_irq(bcl, v) : max77779_clr_irq(bcl, v))
 
 /* This driver determines if HW was throttled due to SMPL/OCP */
 
@@ -25,6 +25,9 @@
 #define VSHUNT_MULTIPLIER	10000
 #define MILLI_TO_MICRO		1000
 #define IRQ_ENABLE_DELAY_MS	50
+#define NOT_USED 		-1
+#define TIMEOUT_10MS		10
+#define TIMEOUT_1MS		1
 
 enum CPU_CLUSTER {
 	LITTLE_CLUSTER,
@@ -125,9 +128,13 @@ struct qos_throttle_limit {
 
 struct bcl_zone {
 	struct device *device;
-	struct delayed_work irq_triggered_work;
+	struct mutex req_lock;
+	struct completion deassert;
+	struct workqueue_struct *triggered_wq;
+	struct workqueue_struct *warn_wq;
+	struct work_struct irq_triggered_work;
 	struct delayed_work irq_untriggered_work;
-	struct delayed_work irq_work;
+	struct work_struct warn_work;
 	struct delayed_work enable_irq_work;
 	struct thermal_zone_device *tz;
 	struct thermal_zone_device_ops tz_ops;
@@ -296,9 +303,9 @@ void google_init_debugfs(struct bcl_device *bcl_dev);
 int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
 int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
 int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
-int max77759_clr_irq(struct bcl_device *bcl_dev);
+int max77759_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
-int max77779_clr_irq(struct bcl_device *bcl_dev);
+int max77779_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
 int google_bcl_setup_votable(struct bcl_device *bcl_dev);
 void google_bcl_remove_votable(struct bcl_device *bcl_dev);
