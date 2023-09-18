@@ -613,6 +613,8 @@ static void google_irq_triggered_work(struct work_struct *work)
 	idx = zone->idx;
 	bcl_dev = zone->parent;
 	/* LIMIT_CAP phase */
+	atomic_inc(&zone->last_triggered.triggered_cnt[LIMIT_CAP]);
+	zone->last_triggered.triggered_time[LIMIT_CAP] = ktime_to_ms(ktime_get());
 
 	mutex_lock(&bcl_dev->data_logging_lock);
 	bcl_dev->triggered_idx = zone->idx;
@@ -642,12 +644,16 @@ static void google_irq_triggered_work(struct work_struct *work)
 		}
 	}
 	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
+	atomic_inc(&zone->last_triggered.triggered_cnt[POWER_REDUCTION]);
+	zone->last_triggered.triggered_time[POWER_REDUCTION] = ktime_to_ms(ktime_get());
 
 	/* IRQ deasserted */
 	if (ret == 0)
 		return;
 	/* POWER_REDUCTION phase: b/300504518 */
 	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_1MS);
+	atomic_inc(&zone->last_triggered.triggered_cnt[SHUTDOWN]);
+	zone->last_triggered.triggered_time[SHUTDOWN] = ktime_to_ms(ktime_get());
 	/* We most likely have to shutdown after this */
 	/* SHUTDOWN phase */
 	/* IRQ deasserted */
@@ -729,6 +735,9 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	zone->parent = bcl_dev;
 	zone->irq_type = type;
 	atomic_set(&zone->bcl_cnt, 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[LIMIT_CAP], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[POWER_REDUCTION], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[SHUTDOWN], 0);
 	if (idx == SMPL_WARN) {
 		latched_intr_flag = IRQF_TRIGGER_FALLING;
 		deassert_intr_flag = IRQF_TRIGGER_RISING;

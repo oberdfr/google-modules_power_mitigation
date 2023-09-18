@@ -39,7 +39,7 @@ const unsigned int clk_stats_offset[] = {
 };
 
 static const char * const batt_irq_names[] = {
-	"uvlo1", "uvlo2", "batoilo"
+	"uvlo1", "uvlo2", "batoilo", "batoilo2"
 };
 
 static const char * const concurrent_pwrwarn_irq_names[] = {
@@ -2173,6 +2173,298 @@ static ssize_t gpu_clk_stats_show(struct device *dev, struct device_attribute *a
 
 static DEVICE_ATTR_RO(gpu_clk_stats);
 
+static ssize_t last_triggered_cnt(struct bcl_zone *zone, char *buf, int mode)
+{
+	if (!zone)
+		return -ENODEV;
+	if (mode >= 0 && mode < MAX_MITIGATION_MODE)
+		return sysfs_emit(buf, "%d\n",
+				  atomic_read(&zone->last_triggered.triggered_cnt[mode]));
+	return sysfs_emit(buf, "0\n");
+}
+
+static ssize_t last_triggered_time(struct bcl_zone *zone, char *buf, int mode)
+{
+	if (!zone)
+		return -ENODEV;
+	if (mode >= 0 && mode < MAX_MITIGATION_MODE)
+		return sysfs_emit(buf, "%lld\n", zone->last_triggered.triggered_time[mode]);
+	return sysfs_emit(buf, "0\n");
+}
+
+static ssize_t last_triggered_uvlo1_shutdown_cnt_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_shutdown_cnt);
+
+static ssize_t last_triggered_uvlo1_power_reduction_cnt_show(struct device *dev,
+							     struct device_attribute *attr,
+							     char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_power_reduction_cnt);
+
+static ssize_t last_triggered_uvlo1_limit_cap_cnt_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_limit_cap_cnt);
+
+static ssize_t last_triggered_uvlo1_shutdown_time_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_shutdown_time);
+
+static ssize_t last_triggered_uvlo1_power_reduction_time_show(struct device *dev,
+							      struct device_attribute *attr,
+							      char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_power_reduction_time);
+
+static ssize_t last_triggered_uvlo1_limit_cap_time_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_limit_cap_time);
+
+static ssize_t last_triggered_uvlo2_shutdown_cnt_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_shutdown_cnt);
+
+static ssize_t last_triggered_uvlo2_power_reduction_cnt_show(struct device *dev,
+							     struct device_attribute *attr,
+							     char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_power_reduction_cnt);
+
+static ssize_t last_triggered_uvlo2_limit_cap_cnt_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_limit_cap_cnt);
+
+static ssize_t last_triggered_uvlo2_shutdown_time_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_shutdown_time);
+
+static ssize_t last_triggered_uvlo2_power_reduction_time_show(struct device *dev,
+							      struct device_attribute *attr,
+							      char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_power_reduction_time);
+
+static ssize_t last_triggered_uvlo2_limit_cap_time_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_limit_cap_time);
+
+static ssize_t last_triggered_batoilo2_shutdown_cnt_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_shutdown_cnt);
+
+static ssize_t last_triggered_batoilo2_power_reduction_cnt_show(struct device *dev,
+								struct device_attribute *attr,
+								char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_power_reduction_cnt);
+
+static ssize_t last_triggered_batoilo2_limit_cap_cnt_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_limit_cap_cnt);
+
+static ssize_t last_triggered_batoilo2_shutdown_time_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_shutdown_time);
+
+static ssize_t last_triggered_batoilo2_power_reduction_time_show(struct device *dev,
+								 struct device_attribute *attr,
+								 char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_power_reduction_time);
+
+static ssize_t last_triggered_batoilo2_limit_cap_time_show(struct device *dev,
+							   struct device_attribute *attr,
+							   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_limit_cap_time);
+
+static ssize_t last_triggered_batoilo_shutdown_cnt_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_shutdown_cnt);
+
+static ssize_t last_triggered_batoilo_power_reduction_cnt_show(struct device *dev,
+							       struct device_attribute *attr,
+							       char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_power_reduction_cnt);
+
+static ssize_t last_triggered_batoilo_limit_cap_cnt_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_limit_cap_cnt);
+
+static ssize_t last_triggered_batoilo_shutdown_time_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, SHUTDOWN);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_shutdown_time);
+
+static ssize_t last_triggered_batoilo_power_reduction_time_show(struct device *dev,
+								struct device_attribute *attr,
+								char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, POWER_REDUCTION);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_power_reduction_time);
+
+static ssize_t last_triggered_batoilo_limit_cap_time_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, LIMIT_CAP);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_limit_cap_time);
+
 static struct attribute *clock_stats_attrs[] = {
 	&dev_attr_cpu0_clk_stats.attr,
 	&dev_attr_cpu1_clk_stats.attr,
@@ -2274,6 +2566,39 @@ static struct attribute *triggered_volt_attrs[] = {
 static const struct attribute_group triggered_voltage_group = {
 	.attrs = triggered_volt_attrs,
 	.name = "last_triggered_voltage",
+};
+
+static struct attribute *last_triggered_mode_attrs[] = {
+	&dev_attr_last_triggered_uvlo1_limit_cap_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_limit_cap_time.attr,
+	&dev_attr_last_triggered_uvlo1_power_reduction_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_power_reduction_time.attr,
+	&dev_attr_last_triggered_uvlo1_shutdown_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_shutdown_time.attr,
+	&dev_attr_last_triggered_uvlo2_limit_cap_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_limit_cap_time.attr,
+	&dev_attr_last_triggered_uvlo2_power_reduction_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_power_reduction_time.attr,
+	&dev_attr_last_triggered_uvlo2_shutdown_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_shutdown_time.attr,
+	&dev_attr_last_triggered_batoilo_limit_cap_cnt.attr,
+	&dev_attr_last_triggered_batoilo_limit_cap_time.attr,
+	&dev_attr_last_triggered_batoilo_power_reduction_cnt.attr,
+	&dev_attr_last_triggered_batoilo_power_reduction_time.attr,
+	&dev_attr_last_triggered_batoilo_shutdown_cnt.attr,
+	&dev_attr_last_triggered_batoilo_shutdown_time.attr,
+	&dev_attr_last_triggered_batoilo2_limit_cap_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_limit_cap_time.attr,
+	&dev_attr_last_triggered_batoilo2_power_reduction_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_power_reduction_time.attr,
+	&dev_attr_last_triggered_batoilo2_shutdown_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_shutdown_time.attr,
+	NULL,
+};
+
+static const struct attribute_group last_triggered_mode_group = {
+	.attrs = last_triggered_mode_attrs,
+	.name = "last_triggered_mode",
 };
 
 static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
@@ -2947,5 +3272,6 @@ const struct attribute_group *mitigation_groups[] = {
 	&irq_dur_cnt_group,
 	&qos_group,
 	&br_stats_group,
+	&last_triggered_mode_group,
 	NULL,
 };

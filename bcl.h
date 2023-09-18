@@ -57,7 +57,15 @@ enum BCL_BATT_IRQ {
 	UVLO1_IRQ_BIN,
 	UVLO2_IRQ_BIN,
 	BATOILO_IRQ_BIN,
+	BATOILO2_IRQ_BIN,
 	MAX_BCL_BATT_IRQ,
+};
+
+enum MITIGATION_MODE {
+	LIMIT_CAP,
+	POWER_REDUCTION,
+	SHUTDOWN,
+	MAX_MITIGATION_MODE,
 };
 
 enum IRQ_DURATION_BIN {
@@ -126,6 +134,11 @@ struct qos_throttle_limit {
 	bool throttle;
 };
 
+struct zone_triggered_stats {
+	atomic_t triggered_cnt[MAX_MITIGATION_MODE];
+	ktime_t triggered_time[MAX_MITIGATION_MODE];
+};
+
 struct bcl_zone {
 	struct device *device;
 	struct mutex req_lock;
@@ -140,6 +153,7 @@ struct bcl_zone {
 	struct thermal_zone_device_ops tz_ops;
 	struct qos_throttle_limit *bcl_qos;
 	struct ocpsmpl_stats bcl_stats;
+	struct zone_triggered_stats last_triggered;
 	atomic_t bcl_cnt;
 	int bcl_prev_lvl;
 	int bcl_cur_lvl;
