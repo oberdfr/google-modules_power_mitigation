@@ -1181,8 +1181,13 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
-	google_set_main_pmic(bcl_dev);
-	google_set_sub_pmic(bcl_dev);
+	ret = google_set_main_pmic(bcl_dev);
+	if (ret < 0)
+		goto bcl_soc_probe_exit;
+	ret = google_set_sub_pmic(bcl_dev);
+	if (ret < 0)
+		goto bcl_soc_probe_exit;
+
 	google_bcl_parse_dtree(bcl_dev);
 
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
