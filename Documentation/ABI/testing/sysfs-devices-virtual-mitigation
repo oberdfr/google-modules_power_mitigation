@@ -207,7 +207,7 @@ Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
 Description:
 		SUBSYSTEM can be one of following:
-		qos_batoilo, qos_ocp_cpu1, qos_ocp_cpu2, qos_ocp_tpu, qos_ocp_gpu,
+		qos_batoilo, qos_batoilo2, qos_ocp_cpu1, qos_ocp_cpu2, qos_ocp_tpu, qos_ocp_gpu,
 		qos_smpl_warn, qos_vdroop1, qos_vdroop2
 		The reported value is pmQOS settings for the corresponding BCL zone.
 

@@ -412,19 +412,15 @@ static int battery_supply_callback(struct notifier_block *nb,
 static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 {
 	int i = 0;
-	struct device *dev;
 	struct bcl_zone *zone;
 
 	power_supply_unreg_notifier(&bcl_dev->psy_nb);
-	dev = bcl_dev->main_dev;
 	for (i = 0; i < TRIGGERED_SOURCE_MAX; i++) {
-		if (i > SOFT_OCP_WARN_TPU)
-			dev = bcl_dev->sub_dev;
 		if (!bcl_dev->zone[i])
 			continue;
 		zone = bcl_dev->zone[i];
 		if (zone->tz)
-			devm_thermal_of_zone_unregister(dev, zone->tz);
+			devm_thermal_of_zone_unregister(bcl_dev->device, zone->tz);
 		mutex_destroy(&zone->req_lock);
 		destroy_workqueue(zone->triggered_wq);
 		destroy_workqueue(zone->warn_wq);
@@ -491,7 +487,7 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
 	if (!data)
 		return -ENOMEM;
 
-	if (!bcl_is_subsystem_on(subsystem_pmu[idx]))
+	if (!bcl_is_subsystem_on(data, subsystem_pmu[idx]))
 		return -EIO;
 
 	if (idx < SUBSYSTEM_TPU)
@@ -1841,17 +1837,17 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	}
 #endif
 
-	if (bcl_disable_power(SUBSYSTEM_CPU2)) {
+	if (bcl_disable_power(bcl_dev, SUBSYSTEM_CPU2)) {
 		if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU2,
 					    bcl_dev->core_conf[SUBSYSTEM_CPU2].clkdivstep) != 0)
 			dev_err(bcl_dev->device, "CPU2 Address is NULL\n");
-		bcl_enable_power(SUBSYSTEM_CPU2);
+		bcl_enable_power(bcl_dev, SUBSYSTEM_CPU2);
 	}
-	if (bcl_disable_power(SUBSYSTEM_CPU1)) {
+	if (bcl_disable_power(bcl_dev, SUBSYSTEM_CPU1)) {
 		if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU1,
 					    bcl_dev->core_conf[SUBSYSTEM_CPU1].clkdivstep) != 0)
 			dev_err(bcl_dev->device, "CPU1 Address is NULL\n");
-		bcl_enable_power(SUBSYSTEM_CPU1);
+		bcl_enable_power(bcl_dev, SUBSYSTEM_CPU1);
 	}
 	if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU0,
 	                            bcl_dev->core_conf[SUBSYSTEM_CPU0].clkdivstep) != 0)
@@ -1928,13 +1924,13 @@ static int google_bcl_probe(struct platform_device *pdev)
 		goto bcl_soc_probe_exit;
 	if (google_set_intf_pmic(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
-	bcl_dev->enabled = true;
 	google_init_debugfs(bcl_dev);
 
 	google_bcl_setup_votable(bcl_dev);
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
 	mutex_init(&bcl_dev->data_logging_lock);
+	bcl_dev->enabled = true;
 
 	return 0;
 

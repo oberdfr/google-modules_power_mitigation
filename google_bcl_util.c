@@ -56,6 +56,25 @@ int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 	return 0;
 }
 
+int cpu_sfr_write(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int value)
+{
+	if (!bcl_disable_power(bcl_dev, idx))
+		return -EIO;
+	__raw_writel(value, addr);
+	bcl_enable_power(bcl_dev, idx);
+	return 0;
+}
+
+int cpu_sfr_read(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int *reg)
+{
+	if (!bcl_disable_power(bcl_dev, idx))
+		return -EIO;
+	*reg = __raw_readl(addr);
+	bcl_enable_power(bcl_dev, idx);
+
+	return 0;
+}
+
 int meter_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 {
 	switch (pmic) {
@@ -89,26 +108,27 @@ int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 	return 0;
 }
 
-bool bcl_is_cluster_on(int cluster)
+bool bcl_is_cluster_on(struct bcl_device *bcl_dev, int cluster)
 {
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 	unsigned int addr, value = 0;
 
-	if (cluster < CPU2_CLUSTER_MIN) {
+	if (cluster < bcl_dev->cpu2_cluster) {
 		addr = CLUSTER1_NONCPU_STATES;
 		exynos_pmu_read(addr, &value);
 		return value & BIT(4);
 	}
-	if (cluster == CPU2_CLUSTER_MIN) {
+	if (cluster == bcl_dev->cpu2_cluster) {
 		addr = CLUSTER2_NONCPU_STATES;
 		exynos_pmu_read(addr, &value);
 		return value & BIT(4);
 	}
-#endif
 	return false;
+#endif
+	return true;
 }
 
-bool bcl_is_subsystem_on(unsigned int addr)
+bool bcl_is_subsystem_on(struct bcl_device *bcl_dev, unsigned int addr)
 {
 	unsigned int value;
 
@@ -121,66 +141,54 @@ bool bcl_is_subsystem_on(unsigned int addr)
 	case PMU_ALIVE_CPU0_STATES:
 		return true;
 	case PMU_ALIVE_CPU1_STATES:
-		return bcl_is_cluster_on(CPU1_CLUSTER_MIN);
+		return bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster);
 	case PMU_ALIVE_CPU2_STATES:
-		return bcl_is_cluster_on(CPU2_CLUSTER_MIN);
+		return bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster);
 	}
 	return false;
 }
 
-bool bcl_disable_power(int cluster)
+bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 {
-	int i;
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
-	if (cluster == SUBSYSTEM_CPU1) {
-		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++) {
-			if (bcl_is_cluster_on(i) == true) {
-				disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-			} else
+	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
+		int i;
+		if (cluster == SUBSYSTEM_CPU1) {
+			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
+				if (bcl_is_cluster_on(bcl_dev, i) == true) {
+					disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
+				} else
+					return false;
+			}
+		}
+		else if (cluster == SUBSYSTEM_CPU2) {
+			if (bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster) == true) {
+				disable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
+			} else {
 				return false;
+			}
 		}
 	}
-	else if (cluster == SUBSYSTEM_CPU2) {
-		if (bcl_is_cluster_on(CPU2_CLUSTER_MIN) == true) {
-			disable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
-		} else {
-			return false;
-		}
-	}
-#else
-	if (cluster == SUBSYSTEM_CPU1)
-		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++)
-			disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-	else if (cluster == SUBSYSTEM_CPU2)
-		disable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
-#endif
 	return true;
 }
 
-bool bcl_enable_power(int cluster)
+bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 {
-	int i;
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
-	if (cluster == SUBSYSTEM_CPU1) {
-		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++) {
-			if (bcl_is_cluster_on(i) == true) {
-				enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
+	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
+		int i;
+		if (cluster == SUBSYSTEM_CPU1) {
+			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
+				if (bcl_is_cluster_on(bcl_dev, i) == true) {
+					enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
+				} else
+					return false;
+			}
+		}
+		else if (cluster == SUBSYSTEM_CPU2) {
+			if (bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster) == true) {
+				enable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
 			} else
 				return false;
 		}
 	}
-	else if (cluster == SUBSYSTEM_CPU2) {
-		if (bcl_is_cluster_on(CPU2_CLUSTER_MIN) == true) {
-			enable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
-		} else
-			return false;
-	}
-#else
-	if (cluster == SUBSYSTEM_CPU1)
-		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++)
-			enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-	else if (cluster == SUBSYSTEM_CPU2)
-		enable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
-#endif
 	return true;
 }

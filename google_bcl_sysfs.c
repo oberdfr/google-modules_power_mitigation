@@ -667,10 +667,10 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
 			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(i)) {
+			if (bcl_disable_power(bcl_dev, i)) {
 				reg = __raw_readl(addr);
 				__raw_writel(reg | 0x1, addr);
-				bcl_enable_power(i);
+				bcl_enable_power(bcl_dev, i);
 			}
 			mutex_unlock(&bcl_dev->ratio_lock);
 		}
@@ -684,10 +684,10 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
 			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(i)) {
+			if (bcl_disable_power(bcl_dev, i)) {
 				reg = __raw_readl(addr);
 				__raw_writel(reg & ~(1 << 0), addr);
-				bcl_enable_power(i);
+				bcl_enable_power(bcl_dev, i);
 			}
 			mutex_unlock(&bcl_dev->ratio_lock);
 		}
@@ -1247,6 +1247,7 @@ static ssize_t smpl_lvl_store(struct device *dev,
 		return ret;
 	}
 	bcl_dev->zone[SMPL_WARN]->bcl_lvl = SMPL_BATTERY_VOLTAGE - val - THERMAL_HYST_LEVEL;
+
 	if (bcl_dev->zone[SMPL_WARN]->tz) {
 		bcl_dev->zone[SMPL_WARN]->tz->trips[0].temperature = SMPL_BATTERY_VOLTAGE - val;
 		thermal_zone_device_update(bcl_dev->zone[SMPL_WARN]->tz, THERMAL_EVENT_UNSPECIFIED);
@@ -1608,28 +1609,26 @@ static ssize_t clk_div_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clkdivstep);
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	}
 	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(idx))
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(idx);
-
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
 static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
+	void __iomem *addr;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1639,21 +1638,19 @@ static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clk_stats);
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU0:
 		break;
 	}
-	if (!bcl_disable_power(idx))
+	addr = bcl_dev->core_conf[idx].base_mem + clk_stats_offset[idx];
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(bcl_dev->core_conf[idx].base_mem + clk_stats_offset[idx]);
-	bcl_enable_power(idx);
-
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 static ssize_t cpu0_clk_div_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -1684,11 +1681,11 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 	case SUBSYSTEM_AUR:
 		return size;
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return -EIO;
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return -EIO;
 		break;
 	case SUBSYSTEM_CPU0:
@@ -1698,14 +1695,11 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 	if (addr == NULL)
 		return -EIO;
 	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(idx);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 	mutex_unlock(&bcl_dev->ratio_lock);
 
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -1860,10 +1854,8 @@ static ssize_t clk_ratio_show(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx,
 	}
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(sub_idx))
+	if (cpu_sfr_read(bcl_dev, sub_idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(sub_idx);
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
@@ -1905,14 +1897,11 @@ static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx
 	if (addr == NULL)
 		return -EIO;
 	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(sub_idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(sub_idx);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 	mutex_unlock(&bcl_dev->ratio_lock);
 
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -2620,10 +2609,8 @@ static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
 
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(idx))
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(idx);
 
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
@@ -2633,6 +2620,7 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 {
 	void __iomem *addr = NULL;
 	unsigned int value;
+	int ret;
 
 	if (sscanf(buf, "0x%x", &value) != 1)
 		return -EINVAL;
@@ -2652,14 +2640,11 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 	if (addr == NULL)
 		return -EIO;
 	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(idx);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 	mutex_unlock(&bcl_dev->ratio_lock);
 
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -2933,6 +2918,23 @@ static ssize_t qos_store(struct bcl_device *bcl_dev, int idx, const char *buf, s
 	return size;
 }
 
+static ssize_t qos_batoilo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, BATOILO2, buf);
+}
+
+static ssize_t qos_batoilo2_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, BATOILO2, buf, size);
+}
+
 static ssize_t qos_batoilo_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -3069,6 +3071,7 @@ static ssize_t qos_ocp_gpu_store(struct device *dev, struct device_attribute *at
 	return qos_store(bcl_dev, OCP_WARN_GPU, buf, size);
 }
 
+static DEVICE_ATTR_RW(qos_batoilo2);
 static DEVICE_ATTR_RW(qos_batoilo);
 static DEVICE_ATTR_RW(qos_vdroop1);
 static DEVICE_ATTR_RW(qos_vdroop2);
@@ -3079,6 +3082,7 @@ static DEVICE_ATTR_RW(qos_ocp_gpu);
 static DEVICE_ATTR_RW(qos_ocp_tpu);
 
 static struct attribute *qos_attrs[] = {
+	&dev_attr_qos_batoilo2.attr,
 	&dev_attr_qos_batoilo.attr,
 	&dev_attr_qos_vdroop1.attr,
 	&dev_attr_qos_vdroop2.attr,
