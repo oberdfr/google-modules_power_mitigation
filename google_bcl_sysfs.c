@@ -824,7 +824,6 @@ static const struct attribute_group instr_group = {
 
 int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val)
 {
-	int prot;
 	int ret;
 	uint8_t reg, regval;
 
@@ -856,10 +855,8 @@ int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, 
 static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
 			  enum IFPMIC ifpmic, int triggered)
 {
-	int prot;
 	int ret;
 	uint8_t reg, regval;
-	uint8_t ival;
 
 	if (!client)
 		return -ENODEV;
@@ -897,8 +894,6 @@ static ssize_t uvlo1_lvl_show(struct device *dev, struct device_attribute *attr,
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	unsigned int uvlo1_lvl;
-	int ret;
-	uint8_t regval;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -958,8 +953,6 @@ static ssize_t uvlo2_lvl_show(struct device *dev, struct device_attribute *attr,
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	unsigned int uvlo2_lvl;
-	int ret;
-	uint8_t regval;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1015,7 +1008,6 @@ static DEVICE_ATTR_RW(uvlo2_lvl);
 
 int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val)
 {
-	int prot;
 	int ret;
 	uint8_t reg, regval;
 
@@ -1044,10 +1036,8 @@ int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, un
 static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
 			     enum IFPMIC ifpmic, int oilo)
 {
-	int prot;
 	int ret;
 	uint8_t reg, regval;
-	uint8_t ival;
 
 	if (!client)
 		return -ENODEV;
@@ -1082,8 +1072,6 @@ static ssize_t batoilo_lvl_show(struct device *dev, struct device_attribute *att
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	unsigned int batoilo1_lvl, lvl;
-	int ret;
-	uint8_t regval;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1139,8 +1127,6 @@ static ssize_t batoilo2_lvl_show(struct device *dev, struct device_attribute *at
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	unsigned int batoilo2_lvl, lvl;
-	int ret;
-	uint8_t regval;
 
 	if (!bcl_dev)
 		return -EIO;

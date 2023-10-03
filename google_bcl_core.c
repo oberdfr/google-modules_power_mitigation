@@ -290,7 +290,6 @@ static void google_warn_work(struct work_struct *work)
 {
 	struct bcl_zone *zone = container_of(work, struct bcl_zone, warn_work);
 	struct bcl_device *bcl_dev;
-	int ret;
 
 	bcl_dev = zone->parent;
 	if (!bcl_dev)
