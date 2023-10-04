@@ -224,7 +224,7 @@ exit:
 static bool google_warn_check(struct bcl_zone *zone)
 {
 	struct bcl_device *bcl_dev;
-	int gpio_level, assert, ret;
+	int gpio_level, assert = 0, ret;
 	int idx = zone->idx;
 	unsigned int regval;
 
@@ -675,7 +675,7 @@ static void google_irq_untriggered_work(struct work_struct *work)
 static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 {
 	struct bcl_device *bcl_dev = data;
-	struct bcl_zone *zone;
+	struct bcl_zone *zone = NULL;
 	int ret;
 	unsigned int regval;
 
@@ -797,7 +797,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	}
 	zone->warn_wq = alloc_workqueue(devname, WQ_HIGHPRI, 1);
 	if (!zone->warn_wq) {
-		dev_err(zone->device, "%s: ERR! fail to create warn_wq\n");
+		dev_err(zone->device, "%s: ERR! fail to create warn_wq\n", devname);
 		destroy_workqueue(zone->triggered_wq);
 		return -ENOMEM;
 	}
@@ -1155,6 +1155,7 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0x0);
 		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
 		                                      MAX77779_PMIC_INTB_MASK, &retval);
+		val = 0;
 		retval = _max77779_pmic_intb_mask_vdroop_int_m_set(retval, val);
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
 		                                       MAX77779_PMIC_INTB_MASK, retval);
