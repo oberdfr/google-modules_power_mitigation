@@ -611,8 +611,10 @@ static void google_irq_triggered_work(struct work_struct *work)
 	atomic_inc(&zone->last_triggered.triggered_cnt[LIMIT_CAP]);
 	zone->last_triggered.triggered_time[LIMIT_CAP] = ktime_to_ms(ktime_get());
 
-	google_bcl_start_data_logging(bcl_dev, idx);
-
+	mutex_lock(&bcl_dev->data_logging_lock);
+	bcl_dev->triggered_idx = zone->idx;
+	sysfs_notify(&bcl_dev->mitigation_dev->kobj, "br_stats", "triggered_idx");
+	mutex_unlock(&bcl_dev->data_logging_lock);
 	if (bcl_dev->batt_psy_initialized) {
 		atomic_inc(&zone->bcl_cnt);
 		ocpsmpl_read_stats(bcl_dev, &zone->bcl_stats, bcl_dev->batt_psy);
@@ -1713,7 +1715,7 @@ u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setti
 {
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 	int rail_i;
-	enum s2mpg1415_meter_muxsel muxsel;
+	s2mpg1415_meter_muxsel muxsel;
 	struct odpm_info *info;
 	u64 raw_unit;
 	u32 resolution;
@@ -1927,10 +1929,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
 	mutex_init(&bcl_dev->data_logging_lock);
-	ret = google_bcl_init_data_logging(bcl_dev);
-	if (ret < 0)
-		goto bcl_soc_probe_exit;
-
 	bcl_dev->enabled = true;
 
 	return 0;
@@ -1950,7 +1948,6 @@ static int google_bcl_remove(struct platform_device *pdev)
 	if (bcl_dev->ready)
 		google_bcl_remove_qos(bcl_dev);
 	google_bcl_remove_votable(bcl_dev);
-	google_bcl_remove_data_logging(bcl_dev);
 
 	return 0;
 }
