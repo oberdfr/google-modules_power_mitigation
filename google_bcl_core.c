@@ -165,7 +165,7 @@ static irqreturn_t deassert_irq_handler(int irq, void *data)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	if (!bcl_dev->ready)
+	if (!bcl_dev->enabled)
 		return IRQ_HANDLED;
 
 	if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
@@ -206,7 +206,7 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	if (!bcl_dev->ready)
+	if (!bcl_dev->enabled)
 		return IRQ_HANDLED;
 
 	if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
@@ -679,6 +679,8 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 	int ret;
 	unsigned int regval;
 
+	if (!bcl_dev->enabled)
+		return IRQ_HANDLED;
 	/* This can one of BATOILO2 or SYS_UVLO1 or EVENT_CNT IRQ */
 	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
 					      MAX77779_PMIC_VDROOP_INT, &regval);
@@ -1409,17 +1411,13 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 
 	intf_pmic_init(bcl_dev);
 
-	bcl_dev->ready = true;
 	google_bcl_parse_qos(bcl_dev);
 	if (google_bcl_setup_qos(bcl_dev) != 0) {
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 		dev_err(bcl_dev->device, "Cannot Initiate QOS\n");
-		bcl_dev->ready = false;
+		return -ENODEV;
 #endif
 	}
-
-	if (!bcl_dev->ready)
-		return -ENODEV;
 
 	for (i = 0; i < TRIGGERED_SOURCE_MAX; i++) {
 		if (bcl_dev->ifpmic == MAX77779) {
@@ -1900,10 +1898,10 @@ static int google_bcl_probe(struct platform_device *pdev)
 	bcl_dev->device = &pdev->dev;
 
 	mutex_init(&bcl_dev->sysreg_lock);
+	mutex_init(&bcl_dev->data_logging_lock);
 	platform_set_drvdata(pdev, bcl_dev);
 
 	bcl_dev->pmic_irq = platform_get_irq(pdev, 0);
-	bcl_dev->ready = false;
 	ret = google_bcl_init_instruction(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
@@ -1928,7 +1926,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	google_bcl_setup_votable(bcl_dev);
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
-	mutex_init(&bcl_dev->data_logging_lock);
 	bcl_dev->enabled = true;
 
 	return 0;
@@ -1945,7 +1942,7 @@ static int google_bcl_remove(struct platform_device *pdev)
 	pmic_device_destroy(bcl_dev->mitigation_dev->devt);
 	debugfs_remove_recursive(bcl_dev->debug_entry);
 	google_bcl_remove_thermal(bcl_dev);
-	if (bcl_dev->ready)
+	if (bcl_dev->enabled)
 		google_bcl_remove_qos(bcl_dev);
 	google_bcl_remove_votable(bcl_dev);
 

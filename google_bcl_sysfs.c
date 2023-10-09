@@ -795,7 +795,7 @@ static ssize_t ready_show(struct device *dev, struct device_attribute *attr, cha
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->ready);
+	return sysfs_emit(buf, "%d\n", bcl_dev->enabled);
 }
 static DEVICE_ATTR_RO(ready);
 
