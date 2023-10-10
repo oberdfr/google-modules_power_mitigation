@@ -13,6 +13,7 @@ google_bcl-y			+= google_bcl_irq_mon.o
 google_bcl-y			+= max77759_vdroop.o
 google_bcl-y			+= max77779_vdroop.o
 google_bcl-y			+= google_bcl_votable.o
+google_bcl-y			+= google_bcl_data_logging.o
 
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 M ?= $(shell pwd)

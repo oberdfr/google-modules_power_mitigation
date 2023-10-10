@@ -3231,6 +3231,35 @@ static struct attribute *br_stats_attrs[] = {
 	NULL,
 };
 
+static ssize_t br_stats_dump_read(struct file *filp,
+				  struct kobject *kobj, struct bin_attribute *attr,
+				  char *buf, loff_t off, size_t count)
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (off > bcl_dev->br_stats_size)
+		return 0;
+	if (off + count > bcl_dev->br_stats_size)
+		count = bcl_dev->br_stats_size - off;
+
+	memcpy(buf, (const void *)bcl_dev->br_stats + off, count);
+
+	return count;
+}
+
+static struct bin_attribute br_stats_dump_attr = {
+	.attr = { .name = "stats", .mode = 0444 },
+	.read = br_stats_dump_read,
+	.size = sizeof(struct brownout_stats),
+};
+
+static struct bin_attribute *br_stats_bin_attrs[] = {
+	&br_stats_dump_attr,
+	NULL,
+};
+
 static const struct attribute_group irq_dur_cnt_group = {
 	.attrs = irq_dur_cnt_attrs,
 	.name = "irq_dur_cnt",
@@ -3243,6 +3272,7 @@ static const struct attribute_group qos_group = {
 
 static const struct attribute_group br_stats_group = {
 	.attrs = br_stats_attrs,
+	.bin_attrs = br_stats_bin_attrs,
 	.name = "br_stats",
 };
 

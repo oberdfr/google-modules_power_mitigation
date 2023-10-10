@@ -12,6 +12,7 @@
 #include <soc/google/exynos_pm_qos.h>
 #include <dt-bindings/power/s2mpg1x-power.h>
 #include <dt-bindings/soc/google/zuma-bcl.h>
+#include "uapi/brownout_stats.h"
 
 #define bcl_cb_get_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
         max77759_get_irq(bcl, v) : max77779_get_irq(bcl, v))
@@ -28,6 +29,8 @@
 #define NOT_USED 		-1
 #define TIMEOUT_10MS		10
 #define TIMEOUT_1MS		1
+#define DATA_LOGGING_TIME	48
+#define DATA_LOGGING_LEN	10
 
 enum CPU_CLUSTER {
 	LITTLE_CLUSTER,
@@ -288,9 +291,17 @@ struct bcl_device {
 
 	struct gvotable_election *toggle_wlc;
 
-	unsigned int triggered_idx;
-	struct mutex data_logging_lock;
 	struct bcl_evt_count evt_cnt;
+
+	unsigned int triggered_idx;
+	struct brownout_stats *br_stats;
+	ssize_t br_stats_size;
+	struct mutex data_logging_lock;
+	struct delayed_work data_logging_complete_work;
+	bool data_logging_enabled;
+	bool is_data_logging_running;
+	struct task_struct *main_task;
+	struct task_struct *sub_task;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
@@ -324,4 +335,7 @@ int max77779_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
 int google_bcl_setup_votable(struct bcl_device *bcl_dev);
 void google_bcl_remove_votable(struct bcl_device *bcl_dev);
+int google_bcl_init_data_logging(struct bcl_device *bcl_dev);
+void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx);
+void google_bcl_remove_data_logging(struct bcl_device *bcl_dev);
 #endif /* __BCL_H */

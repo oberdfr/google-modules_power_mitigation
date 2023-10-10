@@ -6,6 +6,7 @@ filegroup(
     name = "headers",
     srcs = glob([
         "*.h",
+        "uapi/*.h",
     ]),
     visibility = [
         "//private/devices/google:__subpackages__",
@@ -19,9 +20,7 @@ filegroup(
 
 filegroup(
     name = "bcl.kconfig",
-    srcs = glob([
-        "Kconfig",
-    ]),
+    srcs = ["Kconfig"],
     visibility = [
         "//private/devices/google:__subpackages__",
         "//private/google-modules/soc/gs:__pkg__",
@@ -33,7 +32,6 @@ kernel_module(
     srcs = glob([
         "**/*.c",
         "**/*.h",
-        "Kbuild",
     ]) + [
         "//private/google-modules/bms:headers",
         "//private/google-modules/bms/misc:headers",
