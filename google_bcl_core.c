@@ -1713,7 +1713,7 @@ u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setti
 {
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
 	int rail_i;
-	s2mpg1415_meter_muxsel muxsel;
+	enum s2mpg1415_meter_muxsel muxsel;
 	struct odpm_info *info;
 	u64 raw_unit;
 	u32 resolution;
