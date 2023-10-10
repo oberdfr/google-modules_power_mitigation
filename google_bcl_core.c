@@ -298,6 +298,7 @@ static void google_warn_work(struct work_struct *work)
 		google_bcl_release_throttling(zone);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
+		google_bcl_start_data_logging(bcl_dev, zone->idx);
 		/* ODPM Read to kick off LIGHT module throttling */
 		queue_work(zone->warn_wq, &zone->warn_work);
 	}

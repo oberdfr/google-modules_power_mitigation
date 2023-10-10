@@ -4,7 +4,7 @@
 #define __BROWNOUT_STATS_H
 
 #define METER_CHANNEL_MAX	12
-#define DATA_LOGGING_LEN	10
+#define DATA_LOGGING_LEN	20
 
 /* Indexing */
 #define SMPL_WARN	0

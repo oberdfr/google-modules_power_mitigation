@@ -29,8 +29,8 @@
 #define NOT_USED 		-1
 #define TIMEOUT_10MS		10
 #define TIMEOUT_1MS		1
-#define DATA_LOGGING_TIME	48
-#define DATA_LOGGING_LEN	10
+#define DATA_LOGGING_TIME_MS	48
+#define DATA_LOGGING_NUM	50
 
 enum CPU_CLUSTER {
 	LITTLE_CLUSTER,
@@ -302,6 +302,12 @@ struct bcl_device {
 	bool is_data_logging_running;
 	struct task_struct *main_task;
 	struct task_struct *sub_task;
+	struct kthread_worker main_meter_worker;
+	struct kthread_worker sub_meter_worker;
+	struct kthread_work main_meter_work;
+	struct kthread_work sub_meter_work;
+	bool main_thread_running;
+	bool sub_thread_running;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
