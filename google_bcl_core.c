@@ -244,8 +244,8 @@ static bool google_warn_check(struct bcl_zone *zone)
 		}
 		if (idx == BATOILO2)
 			assert = _max77779_pmic_vdroop_int_bat_oilo2_int_get(regval);
-		else if (idx == UVLO1)
-			assert = _max77779_pmic_vdroop_int_sys_uvlo1_int_get(regval);
+		else if (idx == UVLO2)
+			assert = _max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval);
 		if (assert) {
 			ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
 							       MAX77779_PMIC_VDROOP_INT,
@@ -276,7 +276,7 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	mutex_unlock(&zone->req_lock);
 	if (zone->irq_type == IF_PMIC) {
 		update_irq_end_times(bcl_dev, zone->idx);
-		if (zone->idx >= UVLO1 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
+		if (zone->idx >= UVLO2 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
 			event_cnt_read(bcl_dev, zone->idx, &reg);
 	}
 #if IS_ENABLED(CONFIG_BCL_MODEM)
@@ -681,7 +681,7 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 
 	if (!bcl_dev->enabled)
 		return IRQ_HANDLED;
-	/* This can one of BATOILO2 or SYS_UVLO1 or EVENT_CNT IRQ */
+	/* This can one of BATOILO2 or SYS_UVLO2 or EVENT_CNT IRQ */
 	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
 					      MAX77779_PMIC_VDROOP_INT, &regval);
 	if (ret < 0) {
@@ -690,8 +690,8 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 	}
 	if (_max77779_pmic_vdroop_int_bat_oilo2_int_get(regval))
 		zone = bcl_dev->zone[BATOILO2];
-	else if	(_max77779_pmic_vdroop_int_sys_uvlo1_int_get(regval))
-		zone = bcl_dev->zone[UVLO1];
+	else if	(_max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval))
+		zone = bcl_dev->zone[UVLO2];
 	if (zone)
 		queue_work(zone->triggered_wq, &zone->irq_triggered_work);
 
@@ -747,7 +747,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	}
 	latched_intr_flag = latched_intr_flag | default_intr_flag;
 	deassert_intr_flag = deassert_intr_flag | default_intr_flag;
-	if ((bcl_dev->ifpmic == MAX77779) && (idx == BATOILO2 || idx == UVLO1)) {
+	if ((bcl_dev->ifpmic == MAX77779) && (idx == BATOILO2 || idx == UVLO2)) {
 		zone->bcl_pin = NOT_USED;
 		if (!zone->irq_reg) {
 			ret = devm_request_threaded_irq(bcl_dev->device, bcl_dev->pmic_irq, NULL,
@@ -1126,23 +1126,14 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
 		return -ENODEV;
 	}
-	if (bcl_dev->ifpmic == MAX77759) {
-		ret = google_bcl_register_zone(bcl_dev, BATOILO1, "BATOILO1", bcl_dev->vdroop2_pin,
-				       	       batoilo_lvl - THERMAL_HYST_LEVEL,
-				       	       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC);
-		if (ret < 0) {
-			dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
-			return -ENODEV;
-		}
+	ret = google_bcl_register_zone(bcl_dev, BATOILO1, "BATOILO1", bcl_dev->vdroop2_pin,
+				       batoilo_lvl - THERMAL_HYST_LEVEL,
+				       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC);
+	if (ret < 0) {
+		dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
+		return -ENODEV;
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
-		ret = google_bcl_register_zone(bcl_dev, BATOILO1, "BATOILO1", bcl_dev->vdroop1_pin,
-				       	       batoilo_lvl - THERMAL_HYST_LEVEL,
-				       	       gpio_to_irq(bcl_dev->vdroop1_pin), IF_PMIC);
-		if (ret < 0) {
-			dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
-			return -ENODEV;
-		}
 		ret = google_bcl_register_zone(bcl_dev, BATOILO2, "BATOILO2", bcl_dev->vdroop2_pin,
 					       batoilo2_lvl - THERMAL_HYST_LEVEL,
 					       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC);
@@ -1160,24 +1151,30 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
 		                                       MAX77779_PMIC_INTB_MASK, retval);
 
-                /* UVLO2 = VDROOP2 */
+		/* UVLO2 no VDROOP2 */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_SYS_UVLO2_CNFG_1, &val);
-		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val, 1);
+		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val, 0);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
-		/* UVLO1 no VDROOP1 */
+		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, 0xc);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_SYS_UVLO2_CNFG_0, val);
+		/* UVLO1 = VDROOP1 */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_SYS_UVLO1_CNFG_1, &val);
-		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 0);
+		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 1);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
 		                                  MAX77779_SYS_UVLO1_CNFG_1, val);
+		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0x8);
+		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
+		                                  MAX77779_SYS_UVLO1_CNFG_0, val);
 
-		/* BATOILO1 = VDROOP1, 36ms BATOILO1 BAT_OPEN */
+		/* BATOILO1 = VDROOP2, 36ms BATOILO1 BAT_OPEN */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO1_CNFG_3, &val);
-		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 1);
-		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 0);
+		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 0);
+		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 1);
 		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_bat_open_to);
 		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
@@ -1422,7 +1419,7 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 
 	for (i = 0; i < TRIGGERED_SOURCE_MAX; i++) {
 		if (bcl_dev->ifpmic == MAX77779) {
-			if (bcl_dev->zone[i] && (i != BATOILO2) && (i != UVLO1)) {
+			if (bcl_dev->zone[i] && (i != BATOILO2) && (i != UVLO2)) {
 				bcl_dev->zone[i]->disabled = false;
 				enable_irq(bcl_dev->zone[i]->bcl_irq);
 			}
