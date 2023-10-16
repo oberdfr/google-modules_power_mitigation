@@ -124,7 +124,7 @@ static void update_tz(struct bcl_zone *zone, int idx, bool triggered)
 		thermal_zone_device_update(zone->tz, THERMAL_EVENT_UNSPECIFIED);
 }
 
-static int event_cnt_read(struct bcl_device *bcl_dev, int idx, unsigned int *val)
+static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, unsigned int *val)
 {
 	int ret;
 	unsigned int reg;
@@ -147,7 +147,7 @@ static int event_cnt_read(struct bcl_device *bcl_dev, int idx, unsigned int *val
 	/* Read to clear register */
 	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c, reg, val);
 	if (ret < 0) {
-		dev_err(bcl_dev->device, "event_cnt_read: %d, fail\n", reg);
+		dev_err(bcl_dev->device, "evt_cnt_rd_and_clr: %d, fail\n", reg);
 		return -ENODEV;
 	}
 	return 0;
@@ -276,8 +276,8 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	mutex_unlock(&zone->req_lock);
 	if (zone->irq_type == IF_PMIC) {
 		update_irq_end_times(bcl_dev, zone->idx);
-		if (zone->idx >= UVLO2 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
-			event_cnt_read(bcl_dev, zone->idx, &reg);
+		if (zone->idx >= UVLO1 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
+			evt_cnt_rd_and_clr(bcl_dev, zone->idx, &reg);
 	}
 #if IS_ENABLED(CONFIG_BCL_MODEM)
 	if (idx == BATOILO)
@@ -1264,19 +1264,19 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
 
 		/* Read, save, and clear event counters */
-		ret = event_cnt_read(bcl_dev, UVLO1, &regval);
+		ret = evt_cnt_rd_and_clr(bcl_dev, UVLO1, &regval);
 		if (ret == 0)
 			bcl_dev->evt_cnt.uvlo1 = regval;
 
-		ret = event_cnt_read(bcl_dev, UVLO2, &regval);
+		ret = evt_cnt_rd_and_clr(bcl_dev, UVLO2, &regval);
 		if (ret == 0)
 			bcl_dev->evt_cnt.uvlo2 = regval;
 
-		ret = event_cnt_read(bcl_dev, BATOILO1, &regval);
+		ret = evt_cnt_rd_and_clr(bcl_dev, BATOILO1, &regval);
 		if (ret == 0)
 			bcl_dev->evt_cnt.batoilo1 = regval;
 
-		ret = event_cnt_read(bcl_dev, BATOILO2, &regval);
+		ret = evt_cnt_rd_and_clr(bcl_dev, BATOILO2, &regval);
 		if (ret == 0)
 			bcl_dev->evt_cnt.batoilo2 = regval;
 
