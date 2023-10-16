@@ -57,7 +57,7 @@ static int google_bcl_create_thread(struct bcl_device *bcl_dev)
 
 	if (IS_ERR_OR_NULL(main_task)) {
 		ret = PTR_ERR(main_task);
-		dev_err(bcl_dev->device, "failed to create logging thread: %ld\n", ret);
+		dev_err(bcl_dev->device, "failed to create logging thread: %d\n", ret);
 		return ret;
 	}
 	sched_set_normal(main_task, -10);
@@ -68,7 +68,7 @@ static int google_bcl_create_thread(struct bcl_device *bcl_dev)
 
 	if (IS_ERR_OR_NULL(sub_task)) {
 		ret = PTR_ERR(sub_task);
-		dev_err(bcl_dev->device, "failed to create logging thread: %ld\n", ret);
+		dev_err(bcl_dev->device, "failed to create logging thread: %d\n", ret);
 		kthread_stop(main_task);
 		return ret;
 	}
@@ -79,7 +79,7 @@ static int google_bcl_create_thread(struct bcl_device *bcl_dev)
 	wake_up_process(bcl_dev->main_task);
 	wake_up_process(bcl_dev->sub_task);
 
-	return ret;
+	return 0;
 }
 
 static void google_bcl_wakeup_logging_threads(struct bcl_device *bcl_dev)
