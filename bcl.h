@@ -246,10 +246,8 @@ struct bcl_device {
 
 	unsigned int vdroop1_pin;
 	unsigned int vdroop2_pin;
-#if IS_ENABLED(CONFIG_BCL_MODEM)
 	unsigned int modem_gpio1_pin;
 	unsigned int modem_gpio2_pin;
-#endif
 	unsigned int rffe_channel;
 
 	/* debug */
