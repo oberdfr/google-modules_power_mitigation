@@ -169,6 +169,7 @@ struct bcl_zone {
 	int idx;
 	bool disabled;
 	bool irq_reg;
+	bool conf_qos;
 };
 
 struct bcl_core_conf {
@@ -280,6 +281,10 @@ struct bcl_device {
 	int cpu0_cluster;
 	int cpu1_cluster;
 	int cpu2_cluster;
+
+	bool cpu0_cluster_on;
+	bool cpu1_cluster_on;
+	bool cpu2_cluster_on;
 
 	struct bcl_batt_irq_conf batt_irq_conf1;
 	struct bcl_batt_irq_conf batt_irq_conf2;

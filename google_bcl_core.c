@@ -1895,9 +1895,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (google_bcl_configure_modem(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
 
-	ret = google_init_fs(bcl_dev);
-	if (ret < 0)
-		goto bcl_soc_probe_exit;
 	if (google_set_intf_pmic(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
 	google_init_debugfs(bcl_dev);
@@ -1906,6 +1903,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
 	ret = google_bcl_init_data_logging(bcl_dev);
+	if (ret < 0)
+		goto bcl_soc_probe_exit;
+	ret = google_init_fs(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
