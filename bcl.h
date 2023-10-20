@@ -11,7 +11,7 @@
 #include <linux/workqueue.h>
 #include <soc/google/exynos_pm_qos.h>
 #include <dt-bindings/power/s2mpg1x-power.h>
-#include <dt-bindings/soc/google/zuma-bcl.h>
+#include <dt-bindings/soc/google/zumapro-bcl.h>
 #include "uapi/brownout_stats.h"
 
 #define bcl_cb_get_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
