@@ -209,6 +209,11 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 	if (!bcl_dev->enabled)
 		return IRQ_HANDLED;
 
+	if (idx >= UVLO1 && idx <= BATOILO2) {
+		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
+		zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
+	}
+
 	if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
 		bcl_cb_get_irq(bcl_dev, &irq_val);
 		if (irq_val == 0)
@@ -606,9 +611,9 @@ static void google_irq_triggered_work(struct work_struct *work)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	/* LIMIT_CAP phase */
-	atomic_inc(&zone->last_triggered.triggered_cnt[LIMIT_CAP]);
-	zone->last_triggered.triggered_time[LIMIT_CAP] = ktime_to_ms(ktime_get());
+	/* LIGHT phase */
+	atomic_inc(&zone->last_triggered.triggered_cnt[LIGHT]);
+	zone->last_triggered.triggered_time[LIGHT] = ktime_to_ms(ktime_get());
 
 	google_bcl_start_data_logging(bcl_dev, idx);
 
@@ -634,18 +639,18 @@ static void google_irq_triggered_work(struct work_struct *work)
 		}
 	}
 	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
-	atomic_inc(&zone->last_triggered.triggered_cnt[POWER_REDUCTION]);
-	zone->last_triggered.triggered_time[POWER_REDUCTION] = ktime_to_ms(ktime_get());
+	atomic_inc(&zone->last_triggered.triggered_cnt[MEDIUM]);
+	zone->last_triggered.triggered_time[MEDIUM] = ktime_to_ms(ktime_get());
 
 	/* IRQ deasserted */
 	if (ret == 0)
 		return;
-	/* POWER_REDUCTION phase: b/300504518 */
+	/* MEDIUM phase: b/300504518 */
 	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_1MS);
-	atomic_inc(&zone->last_triggered.triggered_cnt[SHUTDOWN]);
-	zone->last_triggered.triggered_time[SHUTDOWN] = ktime_to_ms(ktime_get());
+	atomic_inc(&zone->last_triggered.triggered_cnt[HEAVY]);
+	zone->last_triggered.triggered_time[HEAVY] = ktime_to_ms(ktime_get());
 	/* We most likely have to shutdown after this */
-	/* SHUTDOWN phase */
+	/* HEAVY phase */
 	/* IRQ deasserted */
 	if (ret == 0)
 		return;
@@ -687,8 +692,11 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 		zone = bcl_dev->zone[BATOILO2];
 	else if	(_max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval))
 		zone = bcl_dev->zone[UVLO2];
-	if (zone)
+	if (zone) {
+		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
+		zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
 		queue_work(zone->triggered_wq, &zone->irq_triggered_work);
+	}
 
 	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
 					       MAX77779_PMIC_VDROOP_INT, regval);
@@ -727,9 +735,10 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	zone->parent = bcl_dev;
 	zone->irq_type = type;
 	atomic_set(&zone->bcl_cnt, 0);
-	atomic_set(&zone->last_triggered.triggered_cnt[LIMIT_CAP], 0);
-	atomic_set(&zone->last_triggered.triggered_cnt[POWER_REDUCTION], 0);
-	atomic_set(&zone->last_triggered.triggered_cnt[SHUTDOWN], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[START], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[LIGHT], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[MEDIUM], 0);
+	atomic_set(&zone->last_triggered.triggered_cnt[HEAVY], 0);
 	if (idx == SMPL_WARN) {
 		latched_intr_flag = IRQF_TRIGGER_FALLING;
 		deassert_intr_flag = IRQF_TRIGGER_RISING;

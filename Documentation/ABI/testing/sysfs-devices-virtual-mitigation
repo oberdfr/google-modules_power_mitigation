@@ -5,8 +5,7 @@ Description:
 		IRQ can be selected from uvlo1, uvlo2, batoilo, batoilo2
 		COUNT can be selected from limit_cap_cnt, power_reduction_cnt, shutdown_cnt
 		The reported value is the readback of the counter incremented per mitigation IRQ
-		at different mitigation stages.  The stages are LIMIT_CAP, POWER_REDUCTION, and
-		SHUTDOWN.
+		at different mitigation stages.  The stages are start, light, medium, and heavy.
 		If it doesn't exist, the reported value is 0.
 
 What:		/sys/devices/virtual/pmic/mitigation/last_triggered_mode/<IRQ>_<TIME>
@@ -16,8 +15,7 @@ Description:
 		IRQ can be selected from uvlo1, uvlo2, batoilo, batoilo2
 		COUNT can be selected from limit_cap_time, power_reduction_time, shutdown_time
 		The reported value is the readback of the last triggered timestamp per mitigation
-		IRQ at different mitigation stages.  The stages are LIMIT_CAP, POWER_REDUCTION, and
-		SHUTDOWN.
+		IRQ at different mitigation stages. The stages are start, light, medium, and heavy.
 		If it doesn't exist, the reported value is 0.
 
 What:		/sys/devices/virtual/pmic/mitigation/vdroop_flt/<SUBSYSTEM>
