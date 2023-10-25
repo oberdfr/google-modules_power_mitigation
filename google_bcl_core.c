@@ -442,6 +442,7 @@ static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 				   unsigned int value)
 {
 	void __iomem *addr;
+	int ret;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -457,10 +458,10 @@ static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 		break;
 	}
 	mutex_lock(&bcl_dev->ratio_lock);
-	__raw_writel(value, addr);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 	mutex_unlock(&bcl_dev->ratio_lock);
 
-	return 0;
+	return ret;
 }
 
 struct bcl_device *google_retrieve_bcl_handle(void)
@@ -901,6 +902,8 @@ static irqreturn_t sub_pwr_warn_irq_handler(int irq, void *data)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
+	if (!bcl_dev->enabled)
+		return IRQ_HANDLED;
 	mutex_lock(&bcl_dev->sub_odpm->lock);
 
 	for (i = 0; i < METER_CHANNEL_MAX; i++) {
@@ -931,6 +934,8 @@ static irqreturn_t main_pwr_warn_irq_handler(int irq, void *data)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
+	if (!bcl_dev->enabled)
+		return IRQ_HANDLED;
 	mutex_lock(&bcl_dev->main_odpm->lock);
 
 	for (i = 0; i < METER_CHANNEL_MAX; i++) {

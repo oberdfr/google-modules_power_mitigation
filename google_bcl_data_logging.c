@@ -134,7 +134,7 @@ void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 	if (!bcl_dev->data_logging_enabled)
 		return;
 
-	mutex_lock(&bcl_dev->data_logging_lock);
+	mutex_trylock(&bcl_dev->data_logging_lock);
 	if (!bcl_dev->is_data_logging_running) {
 		bcl_dev->is_data_logging_running = true;
 		google_bcl_init_brownout_stats(bcl_dev);
