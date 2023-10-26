@@ -86,6 +86,7 @@ static int init_freq_qos(struct bcl_device *bcl_dev, struct qos_throttle_limit *
 	if (ret < 0)
 		goto fail2;
 
+	return 0;
 fail2:
 	freq_qos_remove_request(&throttle->cpu1_max_qos_req);
 fail1:
