@@ -312,6 +312,8 @@ struct bcl_device {
 	struct kthread_work sub_meter_work;
 	bool main_thread_running;
 	bool sub_thread_running;
+
+	bool config_modem;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
