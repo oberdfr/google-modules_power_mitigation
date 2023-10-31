@@ -1160,14 +1160,16 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						      MAX77779_SYS_UVLO2_CNFG_1, val);
 		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, 0xc);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
-						      MAX77779_SYS_UVLO2_CNFG_0, val);
-		/* UVLO1 = VDROOP1 */
+		                                      MAX77779_SYS_UVLO2_CNFG_0, val);
+		/* UVLO1 = VDROOP1, 3.1V */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_SYS_UVLO1_CNFG_1, &val);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 1);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
 		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
-		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0x8);
+		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
+		                                 MAX77779_SYS_UVLO1_CNFG_0, &val);
+		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0xa);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
 		                                      MAX77779_SYS_UVLO1_CNFG_0, val);
 
@@ -1490,6 +1492,8 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_OFFSRC1, 0);
 	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_OFFSRC2, 0);
 	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_PWRONSRC, 0);
+	/* SMPL_WARN = 3.0V */
+	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_SMPL_WARN_CTRL, 0x8b);
 
 	ret = google_bcl_register_zone(bcl_dev, SMPL_WARN, "SMPL_WARN_IRQ",
 				       pdata_main->smpl_warn_pin, SMPL_BATTERY_VOLTAGE -
