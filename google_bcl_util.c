@@ -58,12 +58,10 @@ int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 
 int cpu_sfr_write(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int value)
 {
-	mutex_lock(&bcl_dev->ratio_lock);
 	if (!bcl_disable_power(bcl_dev, idx))
 		return -EIO;
 	__raw_writel(value, addr);
 	bcl_enable_power(bcl_dev, idx);
-	mutex_unlock(&bcl_dev->ratio_lock);
 	return 0;
 }
 

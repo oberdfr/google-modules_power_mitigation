@@ -1680,7 +1680,9 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
 	if (addr == NULL)
 		return -EIO;
+	mutex_lock(&bcl_dev->ratio_lock);
 	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
+	mutex_unlock(&bcl_dev->ratio_lock);
 
 	if (ret < 0)
 		return ret;
@@ -1880,7 +1882,9 @@ static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx
 	}
 	if (addr == NULL)
 		return -EIO;
+	mutex_lock(&bcl_dev->ratio_lock);
 	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
+	mutex_unlock(&bcl_dev->ratio_lock);
 
 	if (ret < 0)
 		return ret;
@@ -2717,7 +2721,9 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 	}
 	if (addr == NULL)
 		return -EIO;
+	mutex_lock(&bcl_dev->ratio_lock);
 	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
+	mutex_unlock(&bcl_dev->ratio_lock);
 
 	if (ret < 0)
 		return ret;

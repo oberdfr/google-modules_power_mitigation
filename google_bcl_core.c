@@ -457,7 +457,9 @@ static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 		addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
 		break;
 	}
+	mutex_lock(&bcl_dev->ratio_lock);
 	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
+	mutex_unlock(&bcl_dev->ratio_lock);
 
 	return ret;
 }
