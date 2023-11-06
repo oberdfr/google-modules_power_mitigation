@@ -1894,10 +1894,14 @@ static int google_bcl_probe(struct platform_device *pdev)
 	bcl_dev->device = &pdev->dev;
 
 	mutex_init(&bcl_dev->sysreg_lock);
-	mutex_init(&bcl_dev->data_logging_lock);
 	platform_set_drvdata(pdev, bcl_dev);
 
 	bcl_dev->pmic_irq = platform_get_irq(pdev, 0);
+
+	ret = google_bcl_init_data_logging(bcl_dev);
+	if (ret < 0)
+		goto bcl_soc_probe_exit;
+
 	ret = google_bcl_init_instruction(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
@@ -1916,9 +1920,7 @@ static int google_bcl_probe(struct platform_device *pdev)
 	google_bcl_setup_votable(bcl_dev);
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
-	ret = google_bcl_init_data_logging(bcl_dev);
-	if (ret < 0)
-		goto bcl_soc_probe_exit;
+
 	ret = google_init_fs(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
