@@ -3306,6 +3306,66 @@ static struct attribute *irq_dur_cnt_attrs[] = {
 	NULL,
 };
 
+static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO1]->current_state,
+			  bcl_dev->zone[UVLO1]->current_target);
+}
+
+static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO2]->current_state,
+			  bcl_dev->zone[UVLO2]->current_target);
+}
+
+static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO1]->current_state,
+			  bcl_dev->zone[BATOILO1]->current_target);
+}
+
+static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO2]->current_state,
+			  bcl_dev->zone[BATOILO2]->current_target);
+}
+
+static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[SMPL_WARN]->current_state,
+			  bcl_dev->zone[SMPL_WARN]->current_target);
+}
+
+static DEVICE_ATTR(oilo1_triggered, 0444, oilo1_triggered_show, NULL);
+static DEVICE_ATTR(oilo2_triggered, 0444, oilo2_triggered_show, NULL);
+static DEVICE_ATTR(uvlo1_triggered, 0444, uvlo1_triggered_show, NULL);
+static DEVICE_ATTR(uvlo2_triggered, 0444, uvlo2_triggered_show, NULL);
+static DEVICE_ATTR(smpl_triggered, 0444, smpl_triggered_show, NULL);
+
+static struct attribute *triggered_state_attrs[] = {
+	&dev_attr_oilo1_triggered.attr,
+	&dev_attr_oilo2_triggered.attr,
+	&dev_attr_uvlo1_triggered.attr,
+	&dev_attr_uvlo2_triggered.attr,
+	&dev_attr_smpl_triggered.attr,
+	NULL,
+};
+
 static ssize_t triggered_idx_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -3366,6 +3426,11 @@ static const struct attribute_group br_stats_group = {
 	.name = "br_stats",
 };
 
+static const struct attribute_group triggered_state_group = {
+	.attrs = triggered_state_attrs,
+	.name = "triggered_state",
+};
+
 const struct attribute_group *mitigation_groups[] = {
 	&instr_group,
 	&triggered_lvl_group,
@@ -3383,5 +3448,6 @@ const struct attribute_group *mitigation_groups[] = {
 	&qos_group,
 	&br_stats_group,
 	&last_triggered_mode_group,
+	&triggered_state_group,
 	NULL,
 };

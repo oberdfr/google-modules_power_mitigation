@@ -171,6 +171,8 @@ struct bcl_zone {
 	bool disabled;
 	bool irq_reg;
 	bool conf_qos;
+	u32 current_state;
+	u32 current_target;
 };
 
 struct bcl_core_conf {
@@ -350,4 +352,5 @@ void google_bcl_remove_votable(struct bcl_device *bcl_dev);
 int google_bcl_init_data_logging(struct bcl_device *bcl_dev);
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx);
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev);
+void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state);
 #endif /* __BCL_H */

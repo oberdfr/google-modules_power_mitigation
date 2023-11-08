@@ -1,3 +1,12 @@
+What:		/sys/devices/virtual/pmic/mitigation/triggered_state/<IRQ>_triggered
+Date:		Nov, 2023
+Contact:	"George Lee" <geolee@google.com>
+Description:
+		IRQ can be selected from uvlo1, uvlo2, batoilo, batoilo2, smpl
+		The reported value is the readback of the current mitigation state and current
+		throttling target.
+		If it doesn't exist, the reported value is 0_0.
+
 What:		/sys/devices/virtual/pmic/mitigation/last_triggered_mode/<IRQ>_<COUNT>
 Date:		Sept, 2023
 Contact:	"George Lee" <geolee@google.com>

@@ -273,6 +273,7 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	bcl_dev = zone->parent;
 	zone->bcl_cur_lvl = 0;
 #if IS_ENABLED(CONFIG_SOC_ZUMA)
+	google_bcl_upstream_state(zone, START);
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, false);
 #endif
@@ -301,7 +302,6 @@ static void google_warn_work(struct work_struct *work)
 		google_bcl_release_throttling(zone);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
-		google_bcl_start_data_logging(bcl_dev, zone->idx);
 		/* ODPM Read to kick off LIGHT module throttling */
 		queue_work(zone->warn_wq, &zone->warn_work);
 	}
@@ -611,10 +611,7 @@ static void google_irq_triggered_work(struct work_struct *work)
 	idx = zone->idx;
 	bcl_dev = zone->parent;
 	/* LIGHT phase */
-	atomic_inc(&zone->last_triggered.triggered_cnt[LIGHT]);
-	zone->last_triggered.triggered_time[LIGHT] = ktime_to_ms(ktime_get());
-
-	google_bcl_start_data_logging(bcl_dev, idx);
+	google_bcl_upstream_state(zone, LIGHT);
 
 	if (bcl_dev->batt_psy_initialized) {
 		atomic_inc(&zone->bcl_cnt);
@@ -638,16 +635,11 @@ static void google_irq_triggered_work(struct work_struct *work)
 		}
 	}
 	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
-	atomic_inc(&zone->last_triggered.triggered_cnt[MEDIUM]);
-	zone->last_triggered.triggered_time[MEDIUM] = ktime_to_ms(ktime_get());
+	google_bcl_upstream_state(zone, MEDIUM);
 
-	/* IRQ deasserted */
-	if (ret == 0)
-		return;
 	/* MEDIUM phase: b/300504518 */
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_1MS);
-	atomic_inc(&zone->last_triggered.triggered_cnt[HEAVY]);
-	zone->last_triggered.triggered_time[HEAVY] = ktime_to_ms(ktime_get());
+	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
+	google_bcl_upstream_state(zone, HEAVY);
 	/* We most likely have to shutdown after this */
 	/* HEAVY phase */
 	/* IRQ deasserted */

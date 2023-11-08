@@ -41,6 +41,7 @@ struct brownout_stats {
 
 	struct odpm_lpf main_odpm_lpf[DATA_LOGGING_LEN];
 	struct odpm_lpf sub_odpm_lpf[DATA_LOGGING_LEN];
+	u32 triggered_state[DATA_LOGGING_LEN];
 };
 static_assert(sizeof(struct brownout_stats) <= PAGE_SIZE);
 

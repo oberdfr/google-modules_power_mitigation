@@ -24,6 +24,9 @@ static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 		s2mpg1415_meter_read_lpf_data_reg(info->chip.hw_id, info->i2c,
 						  (u32 *)bcl_dev->br_stats->main_odpm_lpf[j].value);
 		ktime_get_real_ts64((struct timespec64 *)&bcl_dev->br_stats->main_odpm_lpf[j].time);
+		bcl_dev->br_stats->triggered_state[j] =
+				bcl_dev->zone[bcl_dev->br_stats->triggered_idx]->current_state;
+		/* b/299700579 decides which module should be throttled */
 		if (++j == DATA_LOGGING_LEN)
 			j = 0;
 	}
@@ -127,6 +130,31 @@ static void google_bcl_init_brownout_stats(struct bcl_device *bcl_dev)
 {
 	memset((void *)bcl_dev->br_stats, 0, bcl_dev->br_stats_size);
 	bcl_dev->br_stats->triggered_idx = TRIGGERED_SOURCE_MAX;
+}
+
+void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state)
+{
+	struct bcl_device *bcl_dev = zone->parent;
+	int idx = zone->idx;
+
+	atomic_inc(&zone->last_triggered.triggered_cnt[state]);
+	zone->last_triggered.triggered_time[state] = ktime_to_ms(ktime_get());
+	zone->current_state = state;
+	if (idx == UVLO1)
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "uvlo1_triggered");
+	else if (idx == UVLO2)
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "uvlo2_triggered");
+	else if (idx == BATOILO1)
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo1_triggered");
+	else if (idx == BATOILO2)
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo2_triggered");
+	else if (idx == SMPL_WARN)
+		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "smpl_triggered");
+	else
+		return;
+
+	if (state == LIGHT)
+		google_bcl_start_data_logging(bcl_dev, idx);
 }
 
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
