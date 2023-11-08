@@ -7,7 +7,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
-#include <max77779_regs.h>
+#include <max77779.h>
 #include <max777x9_bcl.h>
 #include "bcl.h"
 
@@ -27,14 +27,14 @@ int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable)
 	if (ret < 0)
 		return ret;
 	val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(val, batoilo1_lvl);
-	ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO1_CNFG_0, val);
+	ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO1_CNFG_0, val);
 	if (ret < 0)
 		return ret;
 	ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO2_CNFG_0, &val);
 	if (ret < 0)
 		return ret;
 	val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(val, batoilo2_lvl);
-	ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO2_CNFG_0, val);
+	ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c, MAX77779_BAT_OILO2_CNFG_0, val);
 
 	return ret;
 }

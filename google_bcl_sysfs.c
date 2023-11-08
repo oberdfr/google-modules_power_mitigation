@@ -26,7 +26,7 @@
 #include <linux/mfd/samsung/s2mpg15-register.h>
 #endif
 #include <max77759_regs.h>
-#include <max77779_regs.h>
+#include <max77779.h>
 #include <max777x9_bcl.h>
 
 const unsigned int clk_stats_offset[] = {
@@ -870,7 +870,7 @@ static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
 			regval = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(regval, val);
 		else
 			regval = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(regval, val);
-		ret = max77779_external_reg_write(client, reg, regval);
+		ret = max77779_external_chg_reg_write(client, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	} else {
@@ -1051,7 +1051,7 @@ static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
 			regval = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(regval, val);
 		else
 			regval = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(regval, val);
-		ret = max77779_external_reg_write(client, reg, regval);
+		ret = max77779_external_chg_reg_write(client, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	} else {

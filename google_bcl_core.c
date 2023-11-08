@@ -39,7 +39,7 @@
 #endif
 
 #include <max77759_regs.h>
-#include <max77779_regs.h>
+#include <max77779.h>
 #include <max777x9_bcl.h>
 
 static const struct platform_device_id google_id_table[] = {
@@ -1156,20 +1156,20 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_SYS_UVLO2_CNFG_1, &val);
 		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val, 0);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+						      MAX77779_SYS_UVLO2_CNFG_1, val);
 		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, 0xc);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO2_CNFG_0, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+						      MAX77779_SYS_UVLO2_CNFG_0, val);
 		/* UVLO1 = VDROOP1 */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_SYS_UVLO1_CNFG_1, &val);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 1);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO1_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
 		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0x8);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO1_CNFG_0, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_SYS_UVLO1_CNFG_0, val);
 
 		/* BATOILO1 = VDROOP2, 36ms BATOILO1 BAT_OPEN */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1178,8 +1178,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 1);
 		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_bat_open_to);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO1_CNFG_3, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO1_CNFG_3, val);
 
 		/* BATOILO2 no VDROOP1/2, 12ms BATOILO2 BAT_OPEN */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1188,24 +1188,24 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 0);
 		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_bat_open_to);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO2_CNFG_3, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO2_CNFG_3, val);
 
 		/* BATOILO1 5A THRESHOLD */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO1_CNFG_0, &val);
 		val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_trig_lvl);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO1_CNFG_0, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO1_CNFG_0, val);
 
 		/* BATOILO2 8A THRESHOLD */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO2_CNFG_0, &val);
 		val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_trig_lvl);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO2_CNFG_0, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+						      MAX77779_BAT_OILO2_CNFG_0, val);
 
 		/* BATOILO INT and VDROOP1 REL and DET */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1214,8 +1214,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
 		val = _max77779_bat_oilo1_cnfg_1_bat_oilo1_det_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO1_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO1_CNFG_1, val);
 
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO1_CNFG_2, &val);
@@ -1223,8 +1223,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
 		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_det_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO1_CNFG_2, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO1_CNFG_2, val);
 
 		/* BATOILO2 INT and VDROOP2 REL and DET */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1233,8 +1233,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
 		val = _max77779_bat_oilo2_cnfg_1_bat_oilo2_det_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO2_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO2_CNFG_1, val);
 
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
 		                                 MAX77779_BAT_OILO2_CNFG_2, &val);
@@ -1242,8 +1242,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
 		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_det_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_BAT_OILO2_CNFG_2, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_BAT_OILO2_CNFG_2, val);
 
 		/* UVLO1 INT and VDROOP1 REL and DET */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1252,8 +1252,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf1.uvlo_rel);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_det_set(
 						 val, bcl_dev->batt_irq_conf1.uvlo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO1_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
 
 		/* UVLO2 INT and VDROOP1 REL and DET */
 		ret = max77779_external_reg_read(bcl_dev->intf_pmic_i2c,
@@ -1262,8 +1262,8 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 val, bcl_dev->batt_irq_conf2.uvlo_rel);
 		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_det_set(
 						 val, bcl_dev->batt_irq_conf2.uvlo_det);
-		ret = max77779_external_reg_write(bcl_dev->intf_pmic_i2c,
-		                                  MAX77779_SYS_UVLO2_CNFG_1, val);
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		                                      MAX77779_SYS_UVLO2_CNFG_1, val);
 
 		/* Read, save, and clear event counters */
 		ret = evt_cnt_rd_and_clr(bcl_dev, UVLO1, &regval);
