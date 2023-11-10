@@ -832,7 +832,7 @@ int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, 
 
 	if (ifpmic == MAX77779) {
 		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
-		ret = max77779_external_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(client, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
@@ -863,7 +863,7 @@ static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
 
 	if (ifpmic == MAX77779) {
 		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
-		ret = max77779_external_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(client, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
@@ -1016,7 +1016,7 @@ int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, un
 
 	if (ifpmic == MAX77779) {
 		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
-		ret = max77779_external_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(client, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (oilo == BATOILO1)
@@ -1044,7 +1044,7 @@ static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
 
 	if (ifpmic == MAX77779) {
 		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
-		ret = max77779_external_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(client, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (oilo == BATOILO1)
