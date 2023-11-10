@@ -60,7 +60,9 @@ int cpu_sfr_write(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsig
 {
 	if (!bcl_disable_power(bcl_dev, idx))
 		return -EIO;
+	mutex_lock(&bcl_dev->ratio_lock);
 	__raw_writel(value, addr);
+	mutex_unlock(&bcl_dev->ratio_lock);
 	bcl_enable_power(bcl_dev, idx);
 	return 0;
 }
