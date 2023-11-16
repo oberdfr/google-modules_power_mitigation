@@ -1593,12 +1593,17 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 
 }
 
-extern const struct attribute_group *mitigation_groups[];
+extern const struct attribute_group *mitigation_mw_groups[];
+extern const struct attribute_group *mitigation_sq_groups[];
 
 static int google_init_fs(struct bcl_device *bcl_dev)
 {
-	bcl_dev->mitigation_dev = pmic_subdevice_create(NULL, mitigation_groups,
-							bcl_dev, "mitigation");
+	if (bcl_dev->ifpmic == MAX77759)
+		bcl_dev->mitigation_dev = pmic_subdevice_create(NULL, mitigation_mw_groups,
+								bcl_dev, "mitigation");
+	else
+		bcl_dev->mitigation_dev = pmic_subdevice_create(NULL, mitigation_sq_groups,
+								bcl_dev, "mitigation");
 	if (IS_ERR(bcl_dev->mitigation_dev))
 		return -ENODEV;
 

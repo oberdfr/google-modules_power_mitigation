@@ -3311,11 +3311,8 @@ static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	if (!bcl_dev)
-		return -EIO;
 	if (!bcl_dev->zone[UVLO1])
-		return -EIO;
-
+		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO1]->current_state,
 			  bcl_dev->zone[UVLO1]->current_target);
 }
@@ -3325,11 +3322,8 @@ static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	if (!bcl_dev)
-		return -EIO;
 	if (!bcl_dev->zone[UVLO2])
-		return -EIO;
-
+		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO2]->current_state,
 			  bcl_dev->zone[UVLO2]->current_target);
 }
@@ -3339,13 +3333,10 @@ static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	if (!bcl_dev)
-		return -EIO;
-	if (!bcl_dev->zone[BATOILO1])
-		return -EIO;
-
-	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO1]->current_state,
-			  bcl_dev->zone[BATOILO1]->current_target);
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO]->current_state,
+			  bcl_dev->zone[BATOILO]->current_target);
 }
 
 static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -3353,11 +3344,8 @@ static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	if (!bcl_dev)
-		return -EIO;
 	if (!bcl_dev->zone[BATOILO2])
-		return -EIO;
-
+		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO2]->current_state,
 			  bcl_dev->zone[BATOILO2]->current_target);
 }
@@ -3367,11 +3355,8 @@ static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	if (!bcl_dev)
-		return -EIO;
 	if (!bcl_dev->zone[SMPL_WARN])
-		return -EIO;
-
+		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[SMPL_WARN]->current_state,
 			  bcl_dev->zone[SMPL_WARN]->current_target);
 }
@@ -3382,9 +3367,17 @@ static DEVICE_ATTR(uvlo1_triggered, 0444, uvlo1_triggered_show, NULL);
 static DEVICE_ATTR(uvlo2_triggered, 0444, uvlo2_triggered_show, NULL);
 static DEVICE_ATTR(smpl_triggered, 0444, smpl_triggered_show, NULL);
 
-static struct attribute *triggered_state_attrs[] = {
+static struct attribute *triggered_state_sq_attrs[] = {
 	&dev_attr_oilo1_triggered.attr,
+	&dev_attr_uvlo1_triggered.attr,
+	&dev_attr_uvlo2_triggered.attr,
+	&dev_attr_smpl_triggered.attr,
 	&dev_attr_oilo2_triggered.attr,
+	NULL,
+};
+
+static struct attribute *triggered_state_mw_attrs[] = {
+	&dev_attr_oilo1_triggered.attr,
 	&dev_attr_uvlo1_triggered.attr,
 	&dev_attr_uvlo2_triggered.attr,
 	&dev_attr_smpl_triggered.attr,
@@ -3451,12 +3444,17 @@ static const struct attribute_group br_stats_group = {
 	.name = "br_stats",
 };
 
-static const struct attribute_group triggered_state_group = {
-	.attrs = triggered_state_attrs,
+const struct attribute_group triggered_state_sq_group = {
+	.attrs = triggered_state_sq_attrs,
 	.name = "triggered_state",
 };
 
-const struct attribute_group *mitigation_groups[] = {
+const struct attribute_group triggered_state_mw_group = {
+	.attrs = triggered_state_mw_attrs,
+	.name = "triggered_state",
+};
+
+const struct attribute_group *mitigation_mw_groups[] = {
 	&instr_group,
 	&triggered_lvl_group,
 	&clock_div_group,
@@ -3473,6 +3471,27 @@ const struct attribute_group *mitigation_groups[] = {
 	&qos_group,
 	&br_stats_group,
 	&last_triggered_mode_group,
-	&triggered_state_group,
+	&triggered_state_mw_group,
+	NULL,
+};
+
+const struct attribute_group *mitigation_sq_groups[] = {
+	&instr_group,
+	&triggered_lvl_group,
+	&clock_div_group,
+	&clock_ratio_group,
+	&clock_stats_group,
+	&triggered_count_group,
+	&triggered_timestamp_group,
+	&triggered_capacity_group,
+	&triggered_voltage_group,
+	&vdroop_flt_group,
+	&main_pwrwarn_group,
+	&sub_pwrwarn_group,
+	&irq_dur_cnt_group,
+	&qos_group,
+	&br_stats_group,
+	&last_triggered_mode_group,
+	&triggered_state_sq_group,
 	NULL,
 };
