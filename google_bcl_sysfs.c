@@ -3311,6 +3311,11 @@ static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
+	if (!bcl_dev)
+		return -EIO;
+	if (!bcl_dev->zone[UVLO1])
+		return -EIO;
+
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO1]->current_state,
 			  bcl_dev->zone[UVLO1]->current_target);
 }
@@ -3319,6 +3324,11 @@ static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute 
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev)
+		return -EIO;
+	if (!bcl_dev->zone[UVLO2])
+		return -EIO;
 
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO2]->current_state,
 			  bcl_dev->zone[UVLO2]->current_target);
@@ -3329,6 +3339,11 @@ static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
+	if (!bcl_dev)
+		return -EIO;
+	if (!bcl_dev->zone[BATOILO1])
+		return -EIO;
+
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO1]->current_state,
 			  bcl_dev->zone[BATOILO1]->current_target);
 }
@@ -3338,6 +3353,11 @@ static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute 
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
+	if (!bcl_dev)
+		return -EIO;
+	if (!bcl_dev->zone[BATOILO2])
+		return -EIO;
+
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO2]->current_state,
 			  bcl_dev->zone[BATOILO2]->current_target);
 }
@@ -3346,6 +3366,11 @@ static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev)
+		return -EIO;
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -EIO;
 
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[SMPL_WARN]->current_state,
 			  bcl_dev->zone[SMPL_WARN]->current_target);
