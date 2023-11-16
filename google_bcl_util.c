@@ -19,6 +19,7 @@
 #include <linux/mfd/samsung/s2mpg1415-register.h>
 #endif
 
+#include <soc/google/cal-if.h>
 #include <soc/google/exynos-cpupm.h>
 #include <soc/google/exynos-pm.h>
 #include <soc/google/exynos-pmu-if.h>
@@ -58,21 +59,27 @@ int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 
 int cpu_sfr_write(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int value)
 {
-	if (!bcl_disable_power(bcl_dev, idx))
+	mutex_lock(&bcl_dev->cpu_ratio_lock);
+	if (!bcl_disable_power(bcl_dev, idx)) {
+		mutex_unlock(&bcl_dev->cpu_ratio_lock);
 		return -EIO;
-	mutex_lock(&bcl_dev->ratio_lock);
+	}
 	__raw_writel(value, addr);
-	mutex_unlock(&bcl_dev->ratio_lock);
 	bcl_enable_power(bcl_dev, idx);
+	mutex_unlock(&bcl_dev->cpu_ratio_lock);
 	return 0;
 }
 
 int cpu_sfr_read(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int *reg)
 {
-	if (!bcl_disable_power(bcl_dev, idx))
+	mutex_lock(&bcl_dev->cpu_ratio_lock);
+	if (!bcl_disable_power(bcl_dev, idx)) {
+		mutex_unlock(&bcl_dev->cpu_ratio_lock);
 		return -EIO;
+	}
 	*reg = __raw_readl(addr);
 	bcl_enable_power(bcl_dev, idx);
+	mutex_unlock(&bcl_dev->cpu_ratio_lock);
 
 	return 0;
 }
@@ -155,19 +162,16 @@ bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
+			if (cal_cpu_enable(bcl_dev->cpu1_cluster) < 0)
+				return false;
 			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
-				if (bcl_is_cluster_on(bcl_dev, i) == true) {
-					disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-				} else
-					return false;
+				disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
 			}
 		}
 		else if (cluster == SUBSYSTEM_CPU2) {
-			if (bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster) == true) {
-				disable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
-			} else {
+			if (cal_cpu_enable(bcl_dev->cpu2_cluster) < 0)
 				return false;
-			}
+			disable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
 		}
 	}
 	return true;
@@ -178,18 +182,16 @@ bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
+			if (cal_cpu_enable(bcl_dev->cpu1_cluster) < 0)
+				return false;
 			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
-				if (bcl_is_cluster_on(bcl_dev, i) == true) {
-					enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-				} else
-					return false;
+				enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
 			}
 		}
 		else if (cluster == SUBSYSTEM_CPU2) {
-			if (bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster) == true) {
-				enable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
-			} else
+			if (cal_cpu_enable(bcl_dev->cpu2_cluster) < 0)
 				return false;
+			enable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
 		}
 	}
 	return true;

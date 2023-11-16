@@ -666,13 +666,12 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep |= 0x1;
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(bcl_dev, i)) {
-				reg = __raw_readl(addr);
-				__raw_writel(reg | 0x1, addr);
-				bcl_enable_power(bcl_dev, i);
-			}
-			mutex_unlock(&bcl_dev->ratio_lock);
+			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+			if (ret < 0)
+				return ret;
+			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+			if (ret < 0)
+				return ret;
 		}
 		for (i = 0; i < TRIGGERED_SOURCE_MAX; i++)
 			if (bcl_dev->zone[i] && i != BATOILO)
@@ -683,13 +682,12 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep &= ~(1 << 0);
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(bcl_dev, i)) {
-				reg = __raw_readl(addr);
-				__raw_writel(reg & ~(1 << 0), addr);
-				bcl_enable_power(bcl_dev, i);
-			}
-			mutex_unlock(&bcl_dev->ratio_lock);
+			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+			if (ret < 0)
+				return ret;
+			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+			if (ret < 0)
+				return ret;
 		}
 		for (i = 0; i < TRIGGERED_SOURCE_MAX; i++)
 			if (bcl_dev->zone[i] && i != BATOILO)
@@ -1880,7 +1878,7 @@ static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx
 	}
 	if (addr == NULL)
 		return -EIO;
-	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
+	ret = cpu_sfr_write(bcl_dev, sub_idx, addr, value);
 
 	if (ret < 0)
 		return ret;

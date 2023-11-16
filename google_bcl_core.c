@@ -432,7 +432,10 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 	}
 	mutex_destroy(&bcl_dev->data_logging_lock);
 	mutex_destroy(&bcl_dev->state_trans_lock);
-	mutex_destroy(&bcl_dev->ratio_lock);
+	mutex_destroy(&bcl_dev->cpu_ratio_lock);
+	mutex_destroy(&bcl_dev->gpu_ratio_lock);
+	mutex_destroy(&bcl_dev->tpu_ratio_lock);
+	mutex_destroy(&bcl_dev->aur_ratio_lock);
 	mutex_destroy(&bcl_dev->sysreg_lock);
 
 	return 0;
@@ -482,7 +485,7 @@ struct bcl_device *google_retrieve_bcl_handle(void)
 }
 EXPORT_SYMBOL_GPL(google_retrieve_bcl_handle);
 
-static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
+static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx, struct mutex lock)
 {
 	void __iomem *addr;
 
@@ -495,7 +498,7 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
 	if (idx < SUBSYSTEM_TPU)
 		return -EIO;
 
-	mutex_lock(&data->ratio_lock);
+	mutex_lock(&lock);
 	if (idx != SUBSYSTEM_AUR) {
 		addr = data->core_conf[idx].base_mem + CLKDIVSTEP_CON_HEAVY;
 		__raw_writel(data->core_conf[idx].con_heavy, addr);
@@ -510,26 +513,26 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
 	__raw_writel(data->core_conf[idx].clk_out, addr);
 	data->core_conf[idx].clk_stats = __raw_readl(data->core_conf[idx].base_mem +
 						     clk_stats_offset[idx]);
-	mutex_unlock(&data->ratio_lock);
+	mutex_unlock(&lock);
 
 	return 0;
 }
 
 int google_init_tpu_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_TPU);
+	return google_init_ratio(data, SUBSYSTEM_TPU, data->tpu_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_tpu_ratio);
 
 int google_init_gpu_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_GPU);
+	return google_init_ratio(data, SUBSYSTEM_GPU, data->gpu_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_gpu_ratio);
 
 int google_init_aur_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_AUR);
+	return google_init_ratio(data, SUBSYSTEM_AUR, data->aur_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_aur_ratio);
 
@@ -1669,7 +1672,10 @@ static int google_bcl_init_instruction(struct bcl_device *bcl_dev)
 	}
 
 	mutex_init(&bcl_dev->state_trans_lock);
-	mutex_init(&bcl_dev->ratio_lock);
+	mutex_init(&bcl_dev->cpu_ratio_lock);
+	mutex_init(&bcl_dev->tpu_ratio_lock);
+	mutex_init(&bcl_dev->gpu_ratio_lock);
+	mutex_init(&bcl_dev->aur_ratio_lock);
 	google_bcl_enable_vdroop_irq(bcl_dev);
 
 	bcl_dev->base_add_mem[SUBSYSTEM_CPU0] = devm_ioremap(bcl_dev->device, ADD_CPUCL0, SZ_128);
@@ -1833,18 +1839,12 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	}
 #endif
 
-	if (bcl_disable_power(bcl_dev, SUBSYSTEM_CPU2)) {
-		if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU2,
-					    bcl_dev->core_conf[SUBSYSTEM_CPU2].clkdivstep) != 0)
-			dev_err(bcl_dev->device, "CPU2 Address is NULL\n");
-		bcl_enable_power(bcl_dev, SUBSYSTEM_CPU2);
-	}
-	if (bcl_disable_power(bcl_dev, SUBSYSTEM_CPU1)) {
-		if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU1,
-					    bcl_dev->core_conf[SUBSYSTEM_CPU1].clkdivstep) != 0)
-			dev_err(bcl_dev->device, "CPU1 Address is NULL\n");
-		bcl_enable_power(bcl_dev, SUBSYSTEM_CPU1);
-	}
+	if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU2,
+				    bcl_dev->core_conf[SUBSYSTEM_CPU2].clkdivstep) != 0)
+		dev_err(bcl_dev->device, "CPU2 Address is NULL\n");
+	if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU1,
+				    bcl_dev->core_conf[SUBSYSTEM_CPU1].clkdivstep) != 0)
+		dev_err(bcl_dev->device, "CPU1 Address is NULL\n");
 	if (google_bcl_init_clk_div(bcl_dev, SUBSYSTEM_CPU0,
 	                            bcl_dev->core_conf[SUBSYSTEM_CPU0].clkdivstep) != 0)
 		dev_err(bcl_dev->device, "CPU0 Address is NULL\n");

@@ -235,7 +235,10 @@ struct bcl_device {
 	struct i2c_client *intf_pmic_i2c;
 	struct i2c_client *irq_pmic_i2c;
 
-	struct mutex ratio_lock;
+	struct mutex cpu_ratio_lock;
+	struct mutex tpu_ratio_lock;
+	struct mutex gpu_ratio_lock;
+	struct mutex aur_ratio_lock;
 	struct bcl_core_conf core_conf[SUBSYSTEM_SOURCE_MAX];
 
 	bool batt_psy_initialized;
