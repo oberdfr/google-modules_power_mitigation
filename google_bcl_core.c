@@ -1311,6 +1311,9 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 	}
 	of_node_put(p_np);
 
+	if (bcl_dev->ifpmic == MAX77779)
+		google_bcl_setup_votable(bcl_dev);
+
 	if (np) {
 		ret = of_property_read_u32(np, "batoilo_lower", &retval);
 		bcl_dev->batt_irq_conf1.batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
@@ -1910,8 +1913,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (google_set_intf_pmic(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
 	google_init_debugfs(bcl_dev);
-
-	google_bcl_setup_votable(bcl_dev);
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
 
