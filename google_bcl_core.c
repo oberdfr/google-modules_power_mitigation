@@ -1290,7 +1290,7 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	return ret;
 }
 
-static int google_set_intf_pmic(struct bcl_device *bcl_dev)
+static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_device *pdev)
 {
 	int i, ret = 0;
 	u32 retval;
@@ -1314,8 +1314,15 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 	}
 	of_node_put(p_np);
 
-	if (bcl_dev->ifpmic == MAX77779)
+	if (bcl_dev->ifpmic == MAX77779) {
 		google_bcl_setup_votable(bcl_dev);
+		ret = platform_get_irq(pdev, 0);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "Failed to get irq: %d\n", ret);
+			return -ENODEV;
+		}
+		bcl_dev->pmic_irq = ret;
+	}
 
 	if (np) {
 		ret = of_property_read_u32(np, "batoilo_lower", &retval);
@@ -1898,8 +1905,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	mutex_init(&bcl_dev->sysreg_lock);
 	platform_set_drvdata(pdev, bcl_dev);
 
-	bcl_dev->pmic_irq = platform_get_irq(pdev, 0);
-
 	ret = google_bcl_init_data_logging(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
@@ -1915,7 +1920,7 @@ static int google_bcl_probe(struct platform_device *pdev)
 	google_bcl_parse_dtree(bcl_dev);
 	google_bcl_configure_modem(bcl_dev);
 
-	if (google_set_intf_pmic(bcl_dev) < 0)
+	if (google_set_intf_pmic(bcl_dev, pdev) < 0)
 		goto bcl_soc_probe_exit;
 	google_init_debugfs(bcl_dev);
 
