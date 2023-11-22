@@ -19,6 +19,8 @@ static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 	int i = 0;
 	int j = 0;
 
+	/* select lpf power mode */
+	s2mpg1415_meter_set_lpf_mode(info->chip.hw_id, info->i2c, S2MPG1415_METER_POWER);
 	/* the acquisition time of lpf_data is around 1ms */
 	for (i = 0; i < DATA_LOGGING_NUM && bcl_dev->main_thread_running; i++) {
 		s2mpg1415_meter_read_lpf_data_reg(info->chip.hw_id, info->i2c,
@@ -39,6 +41,8 @@ static void data_logging_sub_odpm_lpf_task(struct kthread_work *work)
 	int i = 0;
 	int j = 0;
 
+	/* select lpf power mode */
+	s2mpg1415_meter_set_lpf_mode(info->chip.hw_id, info->i2c, S2MPG1415_METER_POWER);
 	/* the acquisition time of lpf_data is around 1ms */
 	for (i = 0; i < DATA_LOGGING_NUM && bcl_dev->sub_thread_running; i++) {
 		s2mpg1415_meter_read_lpf_data_reg(info->chip.hw_id, info->i2c,
