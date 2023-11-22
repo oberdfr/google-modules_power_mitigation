@@ -1305,7 +1305,8 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 			dev_err(bcl_dev->device, "Cannot find Charger I2C\n");
 			return -ENODEV;
 		}
-		if (!strcmp(i2c->name, "max77779chrg"))
+		if (!strcmp(i2c->name, "max77779chrg") ||
+		    !strcmp(i2c->name, "max77779chrg_i2c"))
 			bcl_dev->ifpmic = MAX77779;
 		else
 			bcl_dev->ifpmic = MAX77759;
@@ -1413,7 +1414,11 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 	}
 	bcl_dev->batt_psy_initialized = false;
 
-	intf_pmic_init(bcl_dev);
+	ret = intf_pmic_init(bcl_dev);
+	if (ret < 0) {
+		dev_err(bcl_dev->device, "Interface PMIC initialization err:%d\n", ret);
+		return ret;
+	}
 
 	google_bcl_parse_qos(bcl_dev);
 	if (google_bcl_setup_qos(bcl_dev) != 0) {
@@ -1935,8 +1940,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	return 0;
 
 bcl_soc_probe_exit:
+	dev_err(bcl_dev->device, "Retrying BCL probe\n");
 	google_bcl_remove_thermal(bcl_dev);
-	return ret;
+	return -EPROBE_DEFER;
 }
 
 static int google_bcl_remove(struct platform_device *pdev)
