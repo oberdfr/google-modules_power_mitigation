@@ -124,10 +124,10 @@ static void update_tz(struct bcl_zone *zone, int idx, bool triggered)
 		thermal_zone_device_update(zone->tz, THERMAL_EVENT_UNSPECIFIED);
 }
 
-static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, unsigned int *val)
+static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, u8 *val)
 {
 	int ret;
-	unsigned int reg;
+	u8 reg;
 
 	switch (idx) {
 	case UVLO1:
@@ -145,7 +145,7 @@ static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, unsigned int 
 	}
 
 	/* Read to clear register */
-	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c, reg, val);
+	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev, reg, val);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "evt_cnt_rd_and_clr: %d, fail\n", reg);
 		return -ENODEV;
@@ -231,7 +231,7 @@ static bool google_warn_check(struct bcl_zone *zone)
 	struct bcl_device *bcl_dev;
 	int gpio_level, assert = 0, ret;
 	int idx = zone->idx;
-	unsigned int regval;
+	u8 regval;
 
 	bcl_dev = zone->parent;
 	if (zone->bcl_pin != NOT_USED) {
@@ -241,7 +241,7 @@ static bool google_warn_check(struct bcl_zone *zone)
 		return (gpio_level == zone->polarity);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
-		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 						      MAX77779_PMIC_VDROOP_INT, &regval);
 		if (ret < 0) {
 			dev_err(bcl_dev->device, "IRQ read: %d, fail\n", regval);
@@ -252,7 +252,7 @@ static bool google_warn_check(struct bcl_zone *zone)
 		else if (idx == UVLO2)
 			assert = _max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval);
 		if (assert) {
-			ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+			ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 							       MAX77779_PMIC_VDROOP_INT,
 							       regval);
 			if (ret < 0) {
@@ -268,7 +268,7 @@ static bool google_warn_check(struct bcl_zone *zone)
 static void google_bcl_release_throttling(struct bcl_zone *zone)
 {
 	struct bcl_device *bcl_dev;
-	unsigned int reg;
+	u8 reg;
 
 	bcl_dev = zone->parent;
 	zone->bcl_cur_lvl = 0;
@@ -651,12 +651,12 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 	struct bcl_device *bcl_dev = data;
 	struct bcl_zone *zone = NULL;
 	int ret;
-	unsigned int regval;
+	u8 regval;
 
 	if (!bcl_dev->enabled)
 		return IRQ_HANDLED;
 	/* This can one of BATOILO2 or SYS_UVLO2 or EVENT_CNT IRQ */
-	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 					      MAX77779_PMIC_VDROOP_INT, &regval);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "irq_thread: read: %d, fail\n", irq);
@@ -672,7 +672,7 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 		queue_work(zone->triggered_wq, &zone->irq_triggered_work);
 	}
 
-	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 					       MAX77779_PMIC_VDROOP_INT, regval);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "irq_thread: clear: %d, fail\n", regval);
@@ -1073,9 +1073,8 @@ static void google_bcl_parse_qos(struct bcl_device *bcl_dev)
 static int intf_pmic_init(struct bcl_device *bcl_dev)
 {
 	int ret;
-	u8 val;
-	u32 retval;
-	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl, regval;
+	u8 val, retval, regval;
+	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl;
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
 	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
@@ -1115,13 +1114,13 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 			return -ENODEV;
 		}
 		/* Setup mitigation IRQ */
-		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0x0);
-		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 		                                      MAX77779_PMIC_INTB_MASK, &retval);
 		val = 0;
 		retval = _max77779_pmic_intb_mask_vdroop_int_m_set(retval, val);
-		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 		                                       MAX77779_PMIC_INTB_MASK, retval);
 
 		/* UVLO2 no VDROOP2 */
@@ -1257,13 +1256,13 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 			bcl_dev->evt_cnt.batoilo2 = regval;
 
 		/* Enable event counter if it is not enabled */
-		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 						 MAX77779_PMIC_EVENT_CNT_CFG, &retval);
 		retval = _max77779_pmic_event_cnt_cfg_enable_set(
 						 retval, bcl_dev->evt_cnt.enable);
 		retval = _max77779_pmic_event_cnt_cfg_sample_rate_set(
 						 retval, bcl_dev->evt_cnt.rate);
-		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 						  MAX77779_PMIC_EVENT_CNT_CFG, retval);
 	}
 	return ret;
@@ -1290,7 +1289,6 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		else
 			bcl_dev->ifpmic = MAX77759;
 		bcl_dev->intf_pmic_i2c = i2c;
-		bcl_dev->irq_pmic_i2c = i2c;
 	}
 	of_node_put(p_np);
 
@@ -1360,16 +1358,11 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		return -ENODEV;
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
-		p_np = of_parse_phandle(np, "google,pmic", 0);
-		if (p_np) {
-			i2c = of_find_i2c_device_by_node(p_np);
-			if (!i2c) {
-				dev_err(bcl_dev->device, "Cannot find PMIC I2C\n");
-				return -ENODEV;
-			}
-			bcl_dev->irq_pmic_i2c = i2c;
+		bcl_dev->irq_pmic_dev = max77779_get_dev(bcl_dev->device, "google,pmic");
+		if (!bcl_dev->irq_pmic_dev) {
+			dev_err(bcl_dev->device, "Cannot find PMIC bus\n");
+			return -ENODEV;
 		}
-		of_node_put(p_np);
 	}
 
 	INIT_DELAYED_WORK(&bcl_dev->soc_work, google_bcl_evaluate_soc);

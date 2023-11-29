@@ -233,7 +233,7 @@ struct bcl_device {
 	struct i2c_client *main_meter_i2c;
 	struct i2c_client *sub_meter_i2c;
 	struct i2c_client *intf_pmic_i2c;
-	struct i2c_client *irq_pmic_i2c;
+	struct device *irq_pmic_dev;
 
 	struct mutex cpu_ratio_lock;
 	struct mutex tpu_ratio_lock;

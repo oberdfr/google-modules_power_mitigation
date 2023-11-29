@@ -41,7 +41,7 @@ int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable)
 
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 {
-	unsigned int vdroop_int;
+	u8 vdroop_int;
 	u8 ret;
 	u8 clr_bcl_irq_mask;
 
@@ -49,7 +49,7 @@ int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 			    MAX77779_PMIC_VDROOP_INT_BAT_OILO1_INT_MASK |
 			    MAX77779_PMIC_VDROOP_INT_SYS_UVLO1_INT_MASK |
 			    MAX77779_PMIC_VDROOP_INT_SYS_UVLO2_INT_MASK);
-	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_i2c,
+	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 		                              MAX77779_PMIC_VDROOP_INT,
 					      &vdroop_int);
 	if (ret < 0)
@@ -73,7 +73,7 @@ int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 int max77779_clr_irq(struct bcl_device *bcl_dev, int idx)
 {
 	u8 irq_val = 0;
-	unsigned int chg_int = 0;
+	u8 chg_int = 0;
 	int ret;
 
 	if (idx != NOT_USED)
@@ -91,7 +91,7 @@ int max77779_clr_irq(struct bcl_device *bcl_dev, int idx)
 	else if (irq_val == BATOILO2)
 		chg_int = MAX77779_PMIC_VDROOP_INT_BAT_OILO2_INT_MASK;
 
-	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_i2c,
+	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 		                               MAX77779_PMIC_VDROOP_INT, chg_int);
 	if (ret < 0)
 		return IRQ_NONE;
