@@ -1,3 +1,11 @@
+What:		/sys/devices/virtual/pmic/mitigation/irq_config/<IRQ>_disabled
+Date:		Dec, 2023
+Contact:	"George Lee" <geolee@google.com>
+Description:
+		IRQ can be selected from uvlo1, uvlo2, batoilo, batoilo2, smpl, ocp_cpu1, ocp_cpu2,
+		ocp_tpu, ocp_gpu, soft_ocp_cpu1, soft_ocp_cpu2, soft_ocp_tpu, soft_ocp_gpu.
+		0 indicates IRQ is enabled. 1 indicates IRQ is disabled.
+
 What:		/sys/devices/virtual/pmic/mitigation/triggered_state/<IRQ>_triggered
 Date:		Nov, 2023
 Contact:	"George Lee" <geolee@google.com>
@@ -148,12 +156,6 @@ Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
 Description:
 		The reported value is dispatch block throttling setting for MID cluster.
-
-What:		/sys/devices/virtual/pmic/mitigation/instruction/irq_delay
-Date:		May, 2023
-Contact:	"George Lee" <geolee@google.com>
-Description:
-		The reported value is the masking delay in milliseconds of core pmic interrupts.
 
 What:		/sys/devices/virtual/pmic/mitigation/instruction/ready
 Date:		May, 2023

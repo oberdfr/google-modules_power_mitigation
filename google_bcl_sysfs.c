@@ -607,33 +607,6 @@ static ssize_t big_db_settings_show(struct device *dev, struct device_attribute 
 
 static DEVICE_ATTR_RW(big_db_settings);
 
-static ssize_t irq_delay_store(struct device *dev,
-                               struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
-	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	unsigned int value;
-	int ret;
-
-	ret = sscanf(buf, "%d", &value);
-	if (ret != 1)
-		return -EINVAL;
-
-        bcl_dev->irq_delay = value;
-
-	return size;
-}
-
-static ssize_t irq_delay_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
-	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-
-	return sysfs_emit(buf, "%d\n", bcl_dev->irq_delay);
-}
-
-static DEVICE_ATTR_RW(irq_delay);
-
 static ssize_t enable_mitigation_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -811,7 +784,6 @@ static struct attribute *instr_attrs[] = {
 	&dev_attr_evt_cnt_batoilo2.attr,
 	&dev_attr_pwronsrc.attr,
 	&dev_attr_ready.attr,
-	&dev_attr_irq_delay.attr,
 	NULL,
 };
 
@@ -3304,6 +3276,391 @@ static struct attribute *irq_dur_cnt_attrs[] = {
 	NULL,
 };
 
+static ssize_t disabled_store(struct bcl_zone *zone, bool disabled, size_t size)
+{
+	if (disabled && !zone->disabled) {
+		zone->disabled = true;
+		disable_irq(zone->bcl_irq);
+	} else if (!disabled && zone->disabled) {
+		zone->disabled = false;
+		enable_irq(zone->bcl_irq);
+	}
+	return size;
+}
+
+static ssize_t uvlo1_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[UVLO1]->disabled);
+}
+
+static ssize_t uvlo1_disabled_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[UVLO1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[UVLO1], value, size);
+}
+
+static ssize_t uvlo2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[UVLO2]->disabled);
+}
+
+static ssize_t uvlo2_disabled_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[UVLO2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[UVLO2], value, size);
+}
+
+static ssize_t batoilo_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[BATOILO]->disabled);
+}
+
+static ssize_t batoilo_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[BATOILO], value, size);
+}
+
+static ssize_t batoilo2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[BATOILO2]->disabled);
+}
+
+static ssize_t batoilo2_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[BATOILO2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[BATOILO2], value, size);
+}
+
+static ssize_t smpl_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SMPL_WARN]->disabled);
+}
+
+static ssize_t smpl_disabled_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SMPL_WARN], value, size);
+}
+
+static ssize_t ocp_cpu1_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_CPUCL1]->disabled);
+}
+
+static ssize_t ocp_cpu1_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_CPUCL1], value, size);
+}
+
+static ssize_t ocp_cpu2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_CPUCL2]->disabled);
+}
+
+static ssize_t ocp_cpu2_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_CPUCL2], value, size);
+}
+
+static ssize_t ocp_tpu_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_TPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_TPU]->disabled);
+}
+
+static ssize_t ocp_tpu_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_TPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_TPU], value, size);
+}
+
+static ssize_t ocp_gpu_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_GPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_GPU]->disabled);
+}
+
+static ssize_t ocp_gpu_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_GPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_GPU], value, size);
+}
+
+static ssize_t soft_ocp_cpu1_disabled_show(struct device *dev, struct device_attribute *attr,
+					   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_CPUCL1]->disabled);
+}
+
+static ssize_t soft_ocp_cpu1_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_CPUCL1], value, size);
+}
+
+static ssize_t soft_ocp_cpu2_disabled_show(struct device *dev, struct device_attribute *attr,
+					   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_CPUCL2]->disabled);
+}
+
+static ssize_t soft_ocp_cpu2_disabled_store(struct device *dev, struct device_attribute *attr,
+					    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_CPUCL2], value, size);
+}
+
+static ssize_t soft_ocp_tpu_disabled_show(struct device *dev, struct device_attribute *attr,
+					  char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_TPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_TPU]->disabled);
+}
+
+static ssize_t soft_ocp_tpu_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_TPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_TPU], value, size);
+}
+
+static ssize_t soft_ocp_gpu_disabled_show(struct device *dev, struct device_attribute *attr,
+					  char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_GPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_GPU]->disabled);
+}
+
+static ssize_t soft_ocp_gpu_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_GPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_GPU], value, size);
+}
+
+static DEVICE_ATTR_RW(uvlo1_disabled);
+static DEVICE_ATTR_RW(uvlo2_disabled);
+static DEVICE_ATTR_RW(batoilo_disabled);
+static DEVICE_ATTR_RW(batoilo2_disabled);
+static DEVICE_ATTR_RW(smpl_disabled);
+static DEVICE_ATTR_RW(ocp_cpu1_disabled);
+static DEVICE_ATTR_RW(ocp_cpu2_disabled);
+static DEVICE_ATTR_RW(ocp_tpu_disabled);
+static DEVICE_ATTR_RW(ocp_gpu_disabled);
+static DEVICE_ATTR_RW(soft_ocp_cpu1_disabled);
+static DEVICE_ATTR_RW(soft_ocp_cpu2_disabled);
+static DEVICE_ATTR_RW(soft_ocp_tpu_disabled);
+static DEVICE_ATTR_RW(soft_ocp_gpu_disabled);
+
+static struct attribute *irq_config_attrs[] = {
+	&dev_attr_uvlo1_disabled.attr,
+	&dev_attr_uvlo2_disabled.attr,
+	&dev_attr_batoilo_disabled.attr,
+	&dev_attr_batoilo2_disabled.attr,
+	&dev_attr_smpl_disabled.attr,
+	&dev_attr_ocp_cpu1_disabled.attr,
+	&dev_attr_ocp_cpu2_disabled.attr,
+	&dev_attr_ocp_tpu_disabled.attr,
+	&dev_attr_ocp_gpu_disabled.attr,
+	&dev_attr_soft_ocp_cpu1_disabled.attr,
+	&dev_attr_soft_ocp_cpu2_disabled.attr,
+	&dev_attr_soft_ocp_tpu_disabled.attr,
+	&dev_attr_soft_ocp_gpu_disabled.attr,
+	NULL,
+};
+
 static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -3442,6 +3799,11 @@ static const struct attribute_group br_stats_group = {
 	.name = "br_stats",
 };
 
+static const struct attribute_group irq_config_group = {
+	.attrs = irq_config_attrs,
+	.name = "irq_config",
+};
+
 const struct attribute_group triggered_state_sq_group = {
 	.attrs = triggered_state_sq_attrs,
 	.name = "triggered_state",
@@ -3469,6 +3831,7 @@ const struct attribute_group *mitigation_mw_groups[] = {
 	&qos_group,
 	&br_stats_group,
 	&last_triggered_mode_group,
+	&irq_config_group,
 	&triggered_state_mw_group,
 	NULL,
 };
@@ -3490,6 +3853,7 @@ const struct attribute_group *mitigation_sq_groups[] = {
 	&qos_group,
 	&br_stats_group,
 	&last_triggered_mode_group,
+	&irq_config_group,
 	&triggered_state_sq_group,
 	NULL,
 };
