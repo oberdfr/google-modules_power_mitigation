@@ -243,11 +243,23 @@ Description:
 		The reported value is print out of the PWRWARN IRQ breaches across all ODPM rails
 		and IFPMIC IRQ.
 
-What:		/sys/devices/virtual/pmic/mitigation/br_stats
-Date:		Sep, 2023
+What:		/sys/devices/virtual/pmic/mitigation/br_stats/enable_br_stats
+Date:		Dec, 2023
 Contact:	"George Lee" <geolee@google.com>
 		"Sam Ou" <samou@google.com>
 Description:
-		This directory contains the brownout information.
-		- triggered_idx: brownout event index (support sysfs_notify)
-		- stats: brownout information (see uapi/brownout_stats.h)
+		enable_br_stats: indicates if br_stats is enabled
+
+What:		/sys/devices/virtual/pmic/mitigation/br_stats/triggered_idx
+Date:		Dec, 2023
+Contact:	"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		triggered_idx: brownout event index (support sysfs_notify)
+
+What:		/sys/devices/virtual/pmic/mitigation/br_stats/stats
+Date:		Dec, 2023
+Contact:	"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		stats: brownout information (see uapi/brownout_stats.h)

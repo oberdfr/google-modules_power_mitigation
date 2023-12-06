@@ -1933,6 +1933,8 @@ static int google_bcl_probe(struct platform_device *pdev)
 	ret = google_bcl_init_data_logging(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
+	/* br_stats no need to run without mitigation app */
+	bcl_dev->enabled_br_stats = false;
 
 	ret = google_bcl_init_instruction(bcl_dev);
 	if (ret < 0)

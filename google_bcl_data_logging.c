@@ -157,13 +157,13 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 	else
 		return;
 
-	if (state == LIGHT)
+	if (state == LIGHT && bcl_dev->enabled_br_stats)
 		google_bcl_start_data_logging(bcl_dev, idx);
 }
 
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 {
-	if (!bcl_dev->data_logging_enabled)
+	if (!bcl_dev->data_logging_initialized)
 		return;
 
 	mutex_trylock(&bcl_dev->data_logging_lock);
@@ -187,7 +187,7 @@ void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev)
 {
 	google_bcl_stop_logging_threads(bcl_dev);
-	bcl_dev->data_logging_enabled = false;
+	bcl_dev->data_logging_initialized = false;
 	mutex_lock(&bcl_dev->data_logging_lock);
 	bcl_dev->is_data_logging_running = false;
 	mutex_unlock(&bcl_dev->data_logging_lock);
@@ -210,7 +210,7 @@ int google_bcl_init_data_logging(struct bcl_device *bcl_dev)
 		return -EINVAL;
 	}
 	bcl_dev->is_data_logging_running = false;
-	bcl_dev->data_logging_enabled = true;
+	bcl_dev->data_logging_initialized = true;
 	INIT_DELAYED_WORK(&bcl_dev->data_logging_complete_work, data_logging_complete_work);
 
 	return 0;

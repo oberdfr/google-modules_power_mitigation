@@ -302,13 +302,14 @@ struct bcl_device {
 
 	struct bcl_evt_count evt_cnt;
 
+	bool enabled_br_stats;
+	bool data_logging_initialized;
+	bool is_data_logging_running;
 	unsigned int triggered_idx;
-	struct brownout_stats *br_stats;
 	ssize_t br_stats_size;
+	struct brownout_stats *br_stats;
 	struct mutex data_logging_lock;
 	struct delayed_work data_logging_complete_work;
-	bool data_logging_enabled;
-	bool is_data_logging_running;
 	struct task_struct *main_task;
 	struct task_struct *sub_task;
 	struct kthread_worker main_meter_worker;

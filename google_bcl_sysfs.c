@@ -3749,8 +3749,39 @@ static ssize_t triggered_idx_show(struct device *dev, struct device_attribute *a
 
 static DEVICE_ATTR(triggered_idx, 0444, triggered_idx_show, NULL);
 
+static ssize_t enable_br_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d\n", bcl_dev->enabled_br_stats);
+}
+
+static ssize_t enable_br_stats_store(struct device *dev, struct device_attribute *attr,
+				                          const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->data_logging_initialized)
+		return -EINVAL;
+
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+
+	bcl_dev->enabled_br_stats = value;
+
+	return size;
+}
+
+static DEVICE_ATTR_RW(enable_br_stats);
+
 static struct attribute *br_stats_attrs[] = {
 	&dev_attr_triggered_idx.attr,
+	&dev_attr_enable_br_stats.attr,
 	NULL,
 };
 
