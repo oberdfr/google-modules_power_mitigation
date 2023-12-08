@@ -162,14 +162,14 @@ bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
-			if (cal_cpu_enable(bcl_dev->cpu1_cluster) < 0)
+			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 				return false;
 			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
 				disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
 			}
 		}
 		else if (cluster == SUBSYSTEM_CPU2) {
-			if (cal_cpu_enable(bcl_dev->cpu2_cluster) < 0)
+			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 				return false;
 			disable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
 		}
@@ -182,14 +182,14 @@ bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
-			if (cal_cpu_enable(bcl_dev->cpu1_cluster) < 0)
+			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 				return false;
 			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
 				enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
 			}
 		}
 		else if (cluster == SUBSYSTEM_CPU2) {
-			if (cal_cpu_enable(bcl_dev->cpu2_cluster) < 0)
+			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 				return false;
 			enable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
 		}
