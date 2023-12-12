@@ -1091,12 +1091,12 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl;
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO2, &lvl);
 	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO1, &lvl);
 	batoilo_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 
 	ret = google_bcl_register_zone(bcl_dev, UVLO1, "UVLO1", bcl_dev->vdroop1_pin,
 				       VD_BATTERY_VOLTAGE - uvlo1_lvl - THERMAL_HYST_LEVEL,
@@ -1138,118 +1138,118 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                       MAX77779_PMIC_INTB_MASK, retval);
 
 		/* UVLO2 no VDROOP2 */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO2_CNFG_1, &val);
 		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val, 0);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 						      MAX77779_SYS_UVLO2_CNFG_1, val);
 		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, 0xc);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO2_CNFG_0, val);
 		/* UVLO1 = VDROOP1, 3.1V */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO1_CNFG_1, &val);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 1);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO1_CNFG_0, &val);
 		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0xa);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO1_CNFG_0, val);
 
 		/* BATOILO1 = VDROOP2, 36ms BATOILO1 BAT_OPEN */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_3, &val);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 0);
 		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 1);
 		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_bat_open_to);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_3, val);
 
 		/* BATOILO2 no VDROOP1/2, 12ms BATOILO2 BAT_OPEN */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_3, &val);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val, 0);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 0);
 		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_bat_open_to);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO2_CNFG_3, val);
 
 		/* BATOILO1 5A THRESHOLD */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_0, &val);
 		val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_trig_lvl);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_0, val);
 
 		/* BATOILO2 8A THRESHOLD */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_0, &val);
 		val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_trig_lvl);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 						      MAX77779_BAT_OILO2_CNFG_0, val);
 
 		/* BATOILO INT and VDROOP1 REL and DET */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_1, &val);
 		val = _max77779_bat_oilo1_cnfg_1_bat_oilo1_rel_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
 		val = _max77779_bat_oilo1_cnfg_1_bat_oilo1_det_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_1, val);
 
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_2, &val);
 		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_rel_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
 		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_det_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_2, val);
 
 		/* BATOILO2 INT and VDROOP2 REL and DET */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_1, &val);
 		val = _max77779_bat_oilo2_cnfg_1_bat_oilo2_rel_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
 		val = _max77779_bat_oilo2_cnfg_1_bat_oilo2_det_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO2_CNFG_1, val);
 
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_2, &val);
 		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_rel_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
 		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_det_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO2_CNFG_2, val);
 
 		/* UVLO1 INT and VDROOP1 REL and DET */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO1_CNFG_1, &val);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_rel_set(
 						 val, bcl_dev->batt_irq_conf1.uvlo_rel);
 		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_det_set(
 						 val, bcl_dev->batt_irq_conf1.uvlo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
 
 		/* UVLO2 INT and VDROOP1 REL and DET */
-		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO2_CNFG_1, &val);
 		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_rel_set(
 						 val, bcl_dev->batt_irq_conf2.uvlo_rel);
 		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_det_set(
 						 val, bcl_dev->batt_irq_conf2.uvlo_det);
-		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_i2c,
+		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO2_CNFG_1, val);
 
 		/* Read, save, and clear event counters */
@@ -1286,25 +1286,16 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 {
 	int i, ret = 0;
 	u32 retval;
-	struct device_node *p_np;
 	struct device_node *np = bcl_dev->device->of_node;
-	struct i2c_client *i2c;
 
-	p_np = of_parse_phandle(np, "google,charger", 0);
-	if (p_np) {
-		i2c = of_find_i2c_device_by_node(p_np);
-		if (!i2c) {
-			dev_err(bcl_dev->device, "Cannot find Charger I2C\n");
-			return -ENODEV;
-		}
-		if (!strcmp(i2c->name, "max77779chrg") ||
-		    !strcmp(i2c->name, "max77779chrg_i2c"))
-			bcl_dev->ifpmic = MAX77779;
-		else
-			bcl_dev->ifpmic = MAX77759;
-		bcl_dev->intf_pmic_i2c = i2c;
+	ret = of_property_read_u32(np, "google,ifpmic", &retval);
+	bcl_dev->ifpmic = (retval == MAX77759) ? MAX77759 : MAX77779;
+
+	bcl_dev->intf_pmic_dev = max77779_get_dev(bcl_dev->device, "google,charger");
+	if (!bcl_dev->intf_pmic_dev) {
+		dev_err(bcl_dev->device, "Cannot find Charger I2C\n");
+		return -ENODEV;
 	}
-	of_node_put(p_np);
 
 	if (bcl_dev->ifpmic == MAX77779) {
 		google_bcl_setup_votable(bcl_dev);
@@ -1367,10 +1358,6 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		bcl_dev->evt_cnt.rate = ret ? EVT_CNT_RATE_DEFAULT : retval;
 	}
 
-	if (!bcl_dev->intf_pmic_i2c) {
-		dev_err(bcl_dev->device, "Interface PMIC device not found\n");
-		return -ENODEV;
-	}
 	if (bcl_dev->ifpmic == MAX77779) {
 		bcl_dev->irq_pmic_dev = max77779_get_dev(bcl_dev->device, "google,pmic");
 		if (!bcl_dev->irq_pmic_dev) {

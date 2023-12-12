@@ -89,6 +89,11 @@ enum IRQ_TYPE {
 	IF_PMIC,
 };
 
+enum IFPMIC {
+	MAX77759,
+	MAX77779
+};
+
 struct irq_duration_stats {
 	atomic_t lt_5ms_count;
 	atomic_t bt_5ms_10ms_count;
@@ -122,11 +127,6 @@ enum MPMM_SOURCE {
 	MID,
 	BIG,
 	MPMMEN
-};
-
-enum IFPMIC {
-	MAX77759,
-	MAX77779
 };
 
 struct qos_throttle_limit {
@@ -241,7 +241,7 @@ struct bcl_device {
 	struct i2c_client *sub_pmic_i2c;
 	struct i2c_client *main_meter_i2c;
 	struct i2c_client *sub_meter_i2c;
-	struct i2c_client *intf_pmic_i2c;
+	struct device *intf_pmic_dev;
 	struct device *irq_pmic_dev;
 
 	struct mutex cpu_ratio_lock;
@@ -359,8 +359,8 @@ void google_bcl_qos_update(struct bcl_zone *zone, bool throttle);
 int google_bcl_setup_qos(struct bcl_device *bcl_dev);
 void google_bcl_remove_qos(struct bcl_device *bcl_dev);
 void google_init_debugfs(struct bcl_device *bcl_dev);
-int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
-int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
+int uvlo_reg_read(struct device *dev, enum IFPMIC ifpmic, int triggered, unsigned int *val);
+int batoilo_reg_read(struct device *dev, enum IFPMIC ifpmic, int oilo, unsigned int *val);
 int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77759_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);

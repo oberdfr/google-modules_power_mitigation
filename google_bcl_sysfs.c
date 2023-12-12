@@ -793,17 +793,17 @@ static const struct attribute_group instr_group = {
 	.name = "instruction",
 };
 
-int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val)
+int uvlo_reg_read(struct device *dev, enum IFPMIC ifpmic, int triggered, unsigned int *val)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
 	if (ifpmic == MAX77779) {
 		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
-		ret = max77779_external_chg_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
@@ -812,7 +812,7 @@ int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, 
 			*val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_get(regval);
 	} else {
 		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
-		ret = max77759_external_reg_read(client, reg, &regval);
+		ret = max77759_external_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
@@ -823,37 +823,37 @@ int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, 
 	return ret;
 }
 
-static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
+static int uvlo_reg_write(struct device *dev, uint8_t val,
 			  enum IFPMIC ifpmic, int triggered)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
 	if (ifpmic == MAX77779) {
 		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
-		ret = max77779_external_chg_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
 			regval = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(regval, val);
 		else
 			regval = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(regval, val);
-		ret = max77779_external_chg_reg_write(client, reg, regval);
+		ret = max77779_external_chg_reg_write(dev, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	} else {
 		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
-		ret = max77759_external_reg_read(client, reg, &regval);
+		ret = max77759_external_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (triggered == UVLO1)
 			regval = _chg_cnfg_15_sys_uvlo1_set(regval, val);
 		else
 			regval = _chg_cnfg_16_sys_uvlo2_set(regval, val);
-		ret = max77759_external_reg_write(client, reg, regval);
+		ret = max77759_external_reg_write(dev, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	}
@@ -870,9 +870,9 @@ static ssize_t uvlo1_lvl_show(struct device *dev, struct device_attribute *attr,
 		return -EIO;
 	if (!bcl_dev->zone[UVLO1])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
 	bcl_dev->zone[UVLO1]->bcl_lvl = VD_BATTERY_VOLTAGE - VD_STEP * uvlo1_lvl +
 			VD_LOWER_LIMIT - THERMAL_HYST_LEVEL;
 	return sysfs_emit(buf, "%dmV\n", VD_STEP * uvlo1_lvl + VD_LOWER_LIMIT);
@@ -900,11 +900,11 @@ static ssize_t uvlo1_lvl_store(struct device *dev,
 			VD_LOWER_LIMIT, VD_UPPER_LIMIT);
 		return -EINVAL;
 	}
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EIO;
 	lvl = (value - VD_LOWER_LIMIT) / VD_STEP;
 	disable_irq(bcl_dev->zone[UVLO1]->bcl_irq);
-	ret = uvlo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, UVLO1);
+	ret = uvlo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, UVLO1);
 	enable_irq(bcl_dev->zone[UVLO1]->bcl_irq);
 	if (ret)
 		return ret;
@@ -929,9 +929,9 @@ static ssize_t uvlo2_lvl_show(struct device *dev, struct device_attribute *attr,
 		return -EIO;
 	if (!bcl_dev->zone[UVLO2])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 	bcl_dev->zone[UVLO1]->bcl_lvl = VD_BATTERY_VOLTAGE - VD_STEP * uvlo2_lvl +
 			VD_LOWER_LIMIT - THERMAL_HYST_LEVEL;
 	return sysfs_emit(buf, "%dmV\n", VD_STEP * uvlo2_lvl + VD_LOWER_LIMIT);
@@ -959,11 +959,11 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 			VD_LOWER_LIMIT, VD_UPPER_LIMIT);
 		return -EINVAL;
 	}
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EIO;
 	lvl = (value - VD_LOWER_LIMIT) / VD_STEP;
 	disable_irq(bcl_dev->zone[UVLO2]->bcl_irq);
-	ret = uvlo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, UVLO2);
+	ret = uvlo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, UVLO2);
 	enable_irq(bcl_dev->zone[UVLO2]->bcl_irq);
 	if (ret)
 		return ret;
@@ -977,17 +977,17 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 
 static DEVICE_ATTR_RW(uvlo2_lvl);
 
-int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val)
+int batoilo_reg_read(struct device *dev, enum IFPMIC ifpmic, int oilo, unsigned int *val)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
 	if (ifpmic == MAX77779) {
 		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
-		ret = max77779_external_chg_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (oilo == BATOILO1)
@@ -996,7 +996,7 @@ int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, un
 			*val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_get(regval);
 	} else {
 		reg = MAX77759_CHG_CNFG_14;
-		ret = max77759_external_reg_read(client, reg, &regval);
+		ret = max77759_external_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		*val = _chg_cnfg_14_bat_oilo_get(regval);
@@ -1004,34 +1004,34 @@ int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, un
 	return ret;
 }
 
-static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
+static int batoilo_reg_write(struct device *dev, uint8_t val,
 			     enum IFPMIC ifpmic, int oilo)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
 	if (ifpmic == MAX77779) {
 		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
-		ret = max77779_external_chg_reg_read(client, reg, &regval);
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		if (oilo == BATOILO1)
 			regval = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(regval, val);
 		else
 			regval = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(regval, val);
-		ret = max77779_external_chg_reg_write(client, reg, regval);
+		ret = max77779_external_chg_reg_write(dev, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	} else {
 		reg = MAX77759_CHG_CNFG_14;
-		ret = max77759_external_reg_read(client, reg, &regval);
+		ret = max77759_external_reg_read(dev, reg, &regval);
 		if (ret < 0)
 			return -EINVAL;
 		regval = _chg_cnfg_14_bat_oilo_set(regval, val);
-		ret = max77759_external_reg_write(client, reg, regval);
+		ret = max77759_external_reg_write(dev, reg, regval);
 		if (ret < 0)
 			return -EINVAL;
 	}
@@ -1048,9 +1048,9 @@ static ssize_t batoilo_lvl_show(struct device *dev, struct device_attribute *att
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO1])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO1, &lvl);
 	batoilo1_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO1]->bcl_lvl = batoilo1_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo1_lvl);
@@ -1080,7 +1080,7 @@ static ssize_t batoilo_lvl_store(struct device *dev,
 		return -EINVAL;
 	}
 	lvl = (value - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
-	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO1);
+	ret = batoilo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, BATOILO1);
 	if (ret)
 		return ret;
 	bcl_dev->zone[BATOILO1]->bcl_lvl = value - THERMAL_HYST_LEVEL;
@@ -1103,9 +1103,9 @@ static ssize_t batoilo2_lvl_show(struct device *dev, struct device_attribute *at
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO2])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO2, &lvl);
 	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf2.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO2]->bcl_lvl = batoilo2_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo2_lvl);
@@ -1135,7 +1135,7 @@ static ssize_t batoilo2_lvl_store(struct device *dev,
 		return -EINVAL;
 	}
 	lvl = (value - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
-	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO2);
+	ret = batoilo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, BATOILO2);
 	if (ret)
 		return ret;
 	bcl_dev->zone[BATOILO2]->bcl_lvl = value - THERMAL_HYST_LEVEL;
