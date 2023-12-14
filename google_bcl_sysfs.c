@@ -1630,7 +1630,6 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 
 	if (!bcl_dev)
 		return -EIO;
-	bcl_dev->core_conf[idx].clkdivstep = value;
 	switch (idx) {
 	case SUBSYSTEM_TPU:
 	case SUBSYSTEM_GPU:
@@ -1654,6 +1653,7 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 
 	if (ret < 0)
 		return ret;
+	bcl_dev->core_conf[idx].clkdivstep = value;
 	return size;
 }
 
