@@ -491,6 +491,9 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx,
 	if (!data)
 		return -ENOMEM;
 
+	if (!data->enabled)
+		return -EINVAL;
+
 	if (!bcl_is_subsystem_on(data, subsystem_pmu[idx]))
 		return -EIO;
 
@@ -542,6 +545,8 @@ unsigned int google_get_db(struct bcl_device *data, enum MPMM_SOURCE index)
 
 	if (!data)
 		return -ENOMEM;
+	if (!data->enabled)
+		return -EINVAL;
 	if (!data->sysreg_cpucl0) {
 		dev_err(data->device, "Error in sysreg_cpucl0\n");
 		return -ENOMEM;
@@ -568,6 +573,8 @@ int google_set_db(struct bcl_device *data, unsigned int value, enum MPMM_SOURCE 
 
 	if (!data)
 		return -ENOMEM;
+	if (!data->enabled)
+		return -EINVAL;
 	if (!data->sysreg_cpucl0) {
 		dev_err(data->device, "Error in sysreg_cpucl0\n");
 		return -ENOMEM;
