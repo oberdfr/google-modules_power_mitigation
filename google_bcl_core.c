@@ -484,7 +484,8 @@ struct bcl_device *google_retrieve_bcl_handle(void)
 }
 EXPORT_SYMBOL_GPL(google_retrieve_bcl_handle);
 
-static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx, struct mutex lock)
+static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx,
+			     struct mutex *lock)
 {
 	void __iomem *addr;
 
@@ -500,7 +501,7 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx,
 	if (idx < SUBSYSTEM_TPU)
 		return -EIO;
 
-	mutex_lock(&lock);
+	mutex_lock(lock);
 	if (idx != SUBSYSTEM_AUR) {
 		addr = data->core_conf[idx].base_mem + CLKDIVSTEP_CON_HEAVY;
 		__raw_writel(data->core_conf[idx].con_heavy, addr);
@@ -515,26 +516,26 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx,
 	__raw_writel(data->core_conf[idx].clk_out, addr);
 	data->core_conf[idx].clk_stats = __raw_readl(data->core_conf[idx].base_mem +
 						     clk_stats_offset[idx]);
-	mutex_unlock(&lock);
+	mutex_unlock(lock);
 
 	return 0;
 }
 
 int google_init_tpu_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_TPU, data->tpu_ratio_lock);
+	return google_init_ratio(data, SUBSYSTEM_TPU, &data->tpu_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_tpu_ratio);
 
 int google_init_gpu_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_GPU, data->gpu_ratio_lock);
+	return google_init_ratio(data, SUBSYSTEM_GPU, &data->gpu_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_gpu_ratio);
 
 int google_init_aur_ratio(struct bcl_device *data)
 {
-	return google_init_ratio(data, SUBSYSTEM_AUR, data->aur_ratio_lock);
+	return google_init_ratio(data, SUBSYSTEM_AUR, &data->aur_ratio_lock);
 }
 EXPORT_SYMBOL_GPL(google_init_aur_ratio);
 
