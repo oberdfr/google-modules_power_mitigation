@@ -21,16 +21,21 @@
 
 /* This driver determines if HW was throttled due to SMPL/OCP */
 
-#define DELTA_10MS		(10 * NSEC_PER_MSEC)
-#define DELTA_50MS		(50 * NSEC_PER_MSEC)
-#define VSHUNT_MULTIPLIER	10000
-#define MILLI_TO_MICRO		1000
-#define IRQ_ENABLE_DELAY_MS	50
-#define NOT_USED 		-1
-#define TIMEOUT_10MS		10
-#define TIMEOUT_1MS		1
-#define DATA_LOGGING_TIME_MS	48
-#define DATA_LOGGING_NUM	50
+#define DELTA_10MS			(10 * NSEC_PER_MSEC)
+#define DELTA_50MS			(50 * NSEC_PER_MSEC)
+#define VSHUNT_MULTIPLIER		10000
+#define MILLI_TO_MICRO			1000
+#define IRQ_ENABLE_DELAY_MS		50
+#define NOT_USED 			-1
+#define TIMEOUT_10MS			10
+#define TIMEOUT_5MS			5
+#define TIMEOUT_1MS			1
+#define DATA_LOGGING_TIME_MS		48
+#define DATA_LOGGING_NUM		50
+#define HEAVY_MITIGATION_MODULES_NUM	3
+#define MITIGATION_INPUT_DELIM		","
+#define MITIGATION_PRINT_BUF_SIZE  	256
+#define MITIGATION_TMP_BUF_SIZE	16
 
 enum CPU_CLUSTER {
 	LITTLE_CLUSTER,
@@ -172,7 +177,6 @@ struct bcl_zone {
 	bool irq_reg;
 	bool conf_qos;
 	u32 current_state;
-	u32 current_target;
 };
 
 struct bcl_core_conf {
@@ -204,6 +208,11 @@ struct bcl_evt_count {
 	unsigned int batoilo2;
 	u8 enable;
 	u8 rate;
+};
+
+struct bcl_mitigation_conf {
+	u32 module_id;
+	u32 threshold;
 };
 
 struct bcl_device {
@@ -318,6 +327,12 @@ struct bcl_device {
 	struct kthread_work sub_meter_work;
 	bool main_thread_running;
 	bool sub_thread_running;
+	/* module id */
+	struct bcl_mitigation_conf main_mitigation_conf[METER_CHANNEL_MAX];
+	struct bcl_mitigation_conf sub_mitigation_conf[METER_CHANNEL_MAX];
+	u32 *non_monitored_module_ids;
+	u32 non_monitored_mitigation_module_ids;
+	atomic_t mitigation_module_ids;
 
 	bool config_modem;
 };

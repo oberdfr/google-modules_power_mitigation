@@ -3662,6 +3662,16 @@ static struct attribute *irq_config_attrs[] = {
 	NULL,
 };
 
+int get_final_mitigation_module_ids(struct bcl_device *bcl_dev) {
+	int mitigation_module_ids = atomic_read(&bcl_dev->mitigation_module_ids);
+	int w = hweight32(mitigation_module_ids);
+
+	if (w >= HEAVY_MITIGATION_MODULES_NUM || w == 0)
+		mitigation_module_ids |= bcl_dev->non_monitored_mitigation_module_ids;
+
+	return mitigation_module_ids;
+}
+
 static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -3670,7 +3680,7 @@ static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute 
 	if (!bcl_dev->zone[UVLO1])
 		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO1]->current_state,
-			  bcl_dev->zone[UVLO1]->current_target);
+					  get_final_mitigation_module_ids(bcl_dev));
 }
 
 static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -3681,7 +3691,7 @@ static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute 
 	if (!bcl_dev->zone[UVLO2])
 		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO2]->current_state,
-			  bcl_dev->zone[UVLO2]->current_target);
+					  get_final_mitigation_module_ids(bcl_dev));
 }
 
 static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -3692,7 +3702,7 @@ static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute 
 	if (!bcl_dev->zone[BATOILO])
 		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO]->current_state,
-			  bcl_dev->zone[BATOILO]->current_target);
+					  get_final_mitigation_module_ids(bcl_dev));
 }
 
 static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -3703,7 +3713,7 @@ static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute 
 	if (!bcl_dev->zone[BATOILO2])
 		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO2]->current_state,
-			  bcl_dev->zone[BATOILO2]->current_target);
+					  get_final_mitigation_module_ids(bcl_dev));
 }
 
 static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -3714,7 +3724,7 @@ static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *
 	if (!bcl_dev->zone[SMPL_WARN])
 		return -ENODEV;
 	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[SMPL_WARN]->current_state,
-			  bcl_dev->zone[SMPL_WARN]->current_target);
+					  get_final_mitigation_module_ids(bcl_dev));
 }
 
 static DEVICE_ATTR(oilo1_triggered, 0444, oilo1_triggered_show, NULL);
@@ -3722,6 +3732,166 @@ static DEVICE_ATTR(oilo2_triggered, 0444, oilo2_triggered_show, NULL);
 static DEVICE_ATTR(uvlo1_triggered, 0444, uvlo1_triggered_show, NULL);
 static DEVICE_ATTR(uvlo2_triggered, 0444, uvlo2_triggered_show, NULL);
 static DEVICE_ATTR(smpl_triggered, 0444, smpl_triggered_show, NULL);
+
+void bunch_mitigation_threshold_addr(struct bcl_mitigation_conf *mitigation_conf,
+					unsigned int *addr[METER_CHANNEL_MAX]) {
+	int i;
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		addr[i] = &mitigation_conf[i].threshold;
+}
+
+void bunch_mitigation_module_id_addr(struct bcl_mitigation_conf *mitigation_conf,
+					unsigned int *addr[METER_CHANNEL_MAX]) {
+	int i;
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		addr[i] = &mitigation_conf[i].module_id;
+}
+
+static ssize_t mitigation_show(unsigned int *addr[METER_CHANNEL_MAX], char *buf)
+{
+	int i, at = 0;
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		at += sysfs_emit_at(buf, at, "%d,", *addr[i]);
+
+	return at;
+}
+
+static ssize_t mitigation_store(unsigned int *addr[METER_CHANNEL_MAX],
+					const char *buf, size_t size) {
+	int i;
+	unsigned int ch[METER_CHANNEL_MAX] = {0};
+	char * const str = kstrndup(buf, size, GFP_KERNEL);
+	char *sep_str = str;
+	char *token = NULL;
+
+	if (!sep_str)
+		goto mitigation_store_exit;
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++) {
+		token = strsep(&sep_str, MITIGATION_INPUT_DELIM);
+		if (!token || sscanf(token, "%d", &ch[i]) != 1)
+			break;
+		else
+			*addr[i] = ch[i];
+	}
+
+mitigation_store_exit:
+	kfree(str);
+	return size;
+}
+
+static ssize_t main_mitigation_threshold_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t main_mitigation_threshold_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t sub_mitigation_threshold_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t sub_mitigation_threshold_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t main_mitigation_module_id_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t main_mitigation_module_id_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t sub_mitigation_module_id_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t sub_mitigation_module_id_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static DEVICE_ATTR_RW(main_mitigation_threshold);
+static DEVICE_ATTR_RW(sub_mitigation_threshold);
+static DEVICE_ATTR_RW(main_mitigation_module_id);
+static DEVICE_ATTR_RW(sub_mitigation_module_id);
+
+static struct attribute *mitigation_attrs[] = {
+	&dev_attr_main_mitigation_threshold.attr,
+	&dev_attr_sub_mitigation_threshold.attr,
+	&dev_attr_main_mitigation_module_id.attr,
+	&dev_attr_sub_mitigation_module_id.attr,
+	NULL,
+};
+
 
 static struct attribute *triggered_state_sq_attrs[] = {
 	&dev_attr_oilo1_triggered.attr,
@@ -3846,6 +4016,11 @@ const struct attribute_group triggered_state_mw_group = {
 	.name = "triggered_state",
 };
 
+const struct attribute_group mitigation_group = {
+	.attrs = mitigation_attrs,
+	.name = "mitigation",
+};
+
 const struct attribute_group *mitigation_mw_groups[] = {
 	&instr_group,
 	&triggered_lvl_group,
@@ -3887,5 +4062,6 @@ const struct attribute_group *mitigation_sq_groups[] = {
 	&last_triggered_mode_group,
 	&irq_config_group,
 	&triggered_state_sq_group,
+	&mitigation_group,
 	NULL,
 };

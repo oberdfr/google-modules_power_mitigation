@@ -263,3 +263,22 @@ Contact:	"George Lee" <geolee@google.com>
 		"Sam Ou" <samou@google.com>
 Description:
 		stats: brownout information (see uapi/brownout_stats.h)
+
+What:		/sys/devices/virtual/pmic/mitigation/mitigation/<PMIC>_mitigation_threshold
+Date:		Dec, 2023
+Contact:	"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		PMIC can be one of following:
+		main, sub
+		The reported value is lpf_power_raw of each odpm channels for declaring
+		mitigation module during brownout.
+
+What:		/sys/devices/virtual/pmic/mitigation/mitigation/<PMIC>_mitigation_module_id
+Date:		Dec, 2023
+Contact:	"George Lee" <geolee@google.com>
+		"Sam Ou" <samou@google.com>
+Description:
+		PMIC can be one of following:
+		main, sub
+		The reported value is module_id of each odpm channels.

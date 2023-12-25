@@ -12,6 +12,18 @@
 #include <uapi/linux/sched/types.h>
 #include "bcl.h"
 
+void compute_mitigation_modules(struct bcl_device *bcl_dev,
+						struct bcl_mitigation_conf *mitigation_conf,
+						u32 *odpm_lpf_value) {
+	int i;
+	for (i = 0; i < METER_CHANNEL_MAX; i++) {
+		if (odpm_lpf_value[i] >= mitigation_conf[i].threshold) {
+			atomic_or(BIT(mitigation_conf[i].module_id),
+					  &bcl_dev->mitigation_module_ids);
+		}
+	}
+}
+
 static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 {
 	struct bcl_device *bcl_dev = container_of(work, struct bcl_device, main_meter_work);
@@ -28,7 +40,9 @@ static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 		ktime_get_real_ts64((struct timespec64 *)&bcl_dev->br_stats->main_odpm_lpf[j].time);
 		bcl_dev->br_stats->triggered_state[j] =
 				bcl_dev->zone[bcl_dev->br_stats->triggered_idx]->current_state;
-		/* b/299700579 decides which module should be throttled */
+		compute_mitigation_modules(bcl_dev,
+					   bcl_dev->main_mitigation_conf,
+					   bcl_dev->br_stats->main_odpm_lpf[j].value);
 		if (++j == DATA_LOGGING_LEN)
 			j = 0;
 	}
@@ -48,6 +62,9 @@ static void data_logging_sub_odpm_lpf_task(struct kthread_work *work)
 		s2mpg1415_meter_read_lpf_data_reg(info->chip.hw_id, info->i2c,
 						  (u32 *)bcl_dev->br_stats->sub_odpm_lpf[j].value);
 		ktime_get_real_ts64((struct timespec64 *)&bcl_dev->br_stats->sub_odpm_lpf[j].time);
+		compute_mitigation_modules(bcl_dev,
+					   bcl_dev->sub_mitigation_conf,
+					   bcl_dev->br_stats->sub_odpm_lpf[j].value);
 		if (++j == DATA_LOGGING_LEN)
 			j = 0;
 	}
@@ -103,6 +120,7 @@ static void google_bcl_pause_logging_threads(struct bcl_device *bcl_dev)
 	bcl_dev->sub_thread_running = false;
 	kthread_flush_work(&bcl_dev->main_meter_work);
 	kthread_flush_work(&bcl_dev->sub_meter_work);
+	atomic_set(&bcl_dev->mitigation_module_ids, 0);
 }
 
 static void google_bcl_stop_logging_threads(struct bcl_device *bcl_dev)
@@ -141,6 +159,9 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 	struct bcl_device *bcl_dev = zone->parent;
 	int idx = zone->idx;
 
+	if (!bcl_dev->enabled_br_stats)
+		return;
+
 	atomic_inc(&zone->last_triggered.triggered_cnt[state]);
 	zone->last_triggered.triggered_time[state] = ktime_to_ms(ktime_get());
 	zone->current_state = state;
@@ -156,13 +177,13 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "smpl_triggered");
 	else
 		return;
-
-	if (state == LIGHT && bcl_dev->enabled_br_stats)
-		google_bcl_start_data_logging(bcl_dev, idx);
 }
 
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 {
+	if (!bcl_dev->enabled_br_stats)
+		return;
+
 	if (!bcl_dev->data_logging_initialized)
 		return;
 

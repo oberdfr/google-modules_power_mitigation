@@ -187,6 +187,7 @@ exit:
 static int google_bcl_wait_for_response_locked(struct bcl_zone *zone, int timeout_ms)
 {
 	mutex_lock(&zone->req_lock);
+	reinit_completion(&zone->deassert);
 	if (wait_for_completion_timeout(&zone->deassert, msecs_to_jiffies(timeout_ms)) == 0) {
 		mutex_unlock(&zone->req_lock);
 		return -EINVAL;
@@ -610,7 +611,11 @@ static void google_irq_triggered_work(struct work_struct *work)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
+
+	google_bcl_start_data_logging(bcl_dev, idx);
+
 	/* LIGHT phase */
+	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
 	google_bcl_upstream_state(zone, LIGHT);
 
 	if (bcl_dev->batt_psy_initialized) {
@@ -1792,7 +1797,7 @@ static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 
 static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 {
-	int ret, i = 0;
+	int ret, len, i;
 	struct device_node *np = bcl_dev->device->of_node;
 	struct device_node *child;
 	struct device_node *p_np;
@@ -1840,6 +1845,7 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	/* parse ODPM main limit */
 	p_np = of_get_child_by_name(np, "main_limit");
 	if (p_np) {
+		i = 0;
 		for_each_child_of_node(p_np, child) {
 			of_property_read_u32(child, "setting", &read);
 			if (i < METER_CHANNEL_MAX) {
@@ -1856,8 +1862,8 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 
 	/* parse ODPM sub limit */
 	p_np = of_get_child_by_name(np, "sub_limit");
-	i = 0;
 	if (p_np) {
+		i = 0;
 		for_each_child_of_node(p_np, child) {
 			of_property_read_u32(child, "setting", &read);
 			if (i < METER_CHANNEL_MAX) {
@@ -1868,6 +1874,59 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 				    settings_to_current(bcl_dev, CORE_PMIC_SUB, i,
 				                        read << LPF_CURRENT_SHIFT);
 				i++;
+			}
+		}
+	}
+
+	/* parse ODPM main mitigation module */
+	p_np = of_get_child_by_name(np, "main_mitigation");
+	if (p_np) {
+		i = 0;
+		for_each_child_of_node(p_np, child) {
+			if (i < METER_CHANNEL_MAX) {
+				of_property_read_u32(child, "module_id", &read);
+				bcl_dev->main_mitigation_conf[i].module_id = read;
+
+				of_property_read_u32(child, "threshold", &read);
+				bcl_dev->main_mitigation_conf[i].threshold = read;
+				i++;
+			}
+		}
+	}
+
+	/* parse ODPM sub mitigation module */
+	p_np = of_get_child_by_name(np, "sub_mitigation");
+	if (p_np) {
+		i = 0;
+		for_each_child_of_node(p_np, child) {
+			if (i < METER_CHANNEL_MAX) {
+				of_property_read_u32(child, "module_id", &read);
+				bcl_dev->sub_mitigation_conf[i].module_id = read;
+
+				of_property_read_u32(child, "threshold", &read);
+				bcl_dev->sub_mitigation_conf[i].threshold = read;
+				i++;
+			}
+		}
+	}
+
+	/* parse and init non-monitored modules */
+	bcl_dev->non_monitored_mitigation_module_ids = 0;
+	len = 0;
+	if (of_get_property(np, "non_monitored_module_ids", &len) && len >= sizeof(u32)) {
+		len /= sizeof(u32);
+		bcl_dev->non_monitored_module_ids = kmalloc(sizeof(u32) * len, GFP_KERNEL);
+		if (bcl_dev->non_monitored_module_ids) {
+			for (i = 0; i < len; i++) {
+				ret = of_property_read_u32_index(np,
+						 "non_monitored_module_ids",
+						 i, &bcl_dev->non_monitored_module_ids[i]);
+				if (ret) {
+					dev_err(bcl_dev->device,
+						"failed to read non_monitored_module_id_%d\n", i);
+				}
+				bcl_dev->non_monitored_mitigation_module_ids |=
+					BIT(bcl_dev->non_monitored_module_ids[i]);
 			}
 		}
 	}
@@ -1981,6 +2040,7 @@ static int google_bcl_remove(struct platform_device *pdev)
 		google_bcl_remove_qos(bcl_dev);
 	google_bcl_remove_votable(bcl_dev);
 	google_bcl_remove_data_logging(bcl_dev);
+	kfree(bcl_dev->non_monitored_module_ids);
 
 	return 0;
 }
