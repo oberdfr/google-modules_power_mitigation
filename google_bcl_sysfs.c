@@ -612,7 +612,7 @@ static ssize_t enable_mitigation_show(struct device *dev, struct device_attribut
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->enabled);
+	return sysfs_emit(buf, "%d\n", READ_ONCE(bcl_dev->enabled));
 }
 
 static ssize_t enable_mitigation_store(struct device *dev, struct device_attribute *attr,
@@ -629,11 +629,12 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 	if (ret)
 		return ret;
 
-	if (bcl_dev->enabled == value)
+	if (smp_load_acquire(&bcl_dev->enabled) == value)
 		return size;
 
-	bcl_dev->enabled = value;
-	if (bcl_dev->enabled) {
+	/* Kernel filesystem serializes sysfs store callbacks */
+	smp_store_release(&bcl_dev->enabled, value);
+	if (value) {
 		bcl_dev->core_conf[SUBSYSTEM_TPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_GPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep |= 0x1;
@@ -766,7 +767,7 @@ static ssize_t ready_show(struct device *dev, struct device_attribute *attr, cha
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->enabled);
+	return sysfs_emit(buf, "%d\n", READ_ONCE(bcl_dev->enabled));
 }
 static DEVICE_ATTR_RO(ready);
 

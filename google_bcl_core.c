@@ -8,6 +8,7 @@
 
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
 
+#include <linux/atomic.h>
 #include <linux/completion.h>
 #include <linux/module.h>
 #include <linux/workqueue.h>
@@ -165,7 +166,7 @@ static irqreturn_t deassert_irq_handler(int irq, void *data)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	if (!bcl_dev->enabled)
+	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
 
 	if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
@@ -206,7 +207,7 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	if (!bcl_dev->enabled)
+	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
 
 	if (idx >= UVLO1 && idx <= BATOILO2) {
@@ -492,7 +493,7 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx,
 	if (!data)
 		return -ENOMEM;
 
-	if (!data->enabled)
+	if (!smp_load_acquire(&data->enabled))
 		return -EINVAL;
 
 	if (!bcl_is_subsystem_on(data, subsystem_pmu[idx]))
@@ -546,7 +547,7 @@ unsigned int google_get_db(struct bcl_device *data, enum MPMM_SOURCE index)
 
 	if (!data)
 		return -ENOMEM;
-	if (!data->enabled)
+	if (!smp_load_acquire(&data->enabled))
 		return -EINVAL;
 	if (!data->sysreg_cpucl0) {
 		dev_err(data->device, "Error in sysreg_cpucl0\n");
@@ -574,7 +575,7 @@ int google_set_db(struct bcl_device *data, unsigned int value, enum MPMM_SOURCE 
 
 	if (!data)
 		return -ENOMEM;
-	if (!data->enabled)
+	if (!smp_load_acquire(&data->enabled))
 		return -EINVAL;
 	if (!data->sysreg_cpucl0) {
 		dev_err(data->device, "Error in sysreg_cpucl0\n");
@@ -661,7 +662,7 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 	int ret;
 	u8 regval;
 
-	if (!bcl_dev->enabled)
+	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
 	/* This can one of BATOILO2 or SYS_UVLO2 or EVENT_CNT IRQ */
 	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
@@ -882,7 +883,7 @@ static irqreturn_t sub_pwr_warn_irq_handler(int irq, void *data)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
-	if (!bcl_dev->enabled)
+	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
 	mutex_lock(&bcl_dev->sub_odpm->lock);
 
@@ -914,7 +915,7 @@ static irqreturn_t main_pwr_warn_irq_handler(int irq, void *data)
 	struct bcl_device *bcl_dev = data;
 	int i;
 
-	if (!bcl_dev->enabled)
+	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
 	mutex_lock(&bcl_dev->main_odpm->lock);
 
@@ -1959,7 +1960,7 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
-	bcl_dev->enabled = true;
+	smp_store_release(&bcl_dev->enabled, true);
 
 	return 0;
 
@@ -1976,7 +1977,7 @@ static int google_bcl_remove(struct platform_device *pdev)
 	pmic_device_destroy(bcl_dev->mitigation_dev->devt);
 	debugfs_remove_recursive(bcl_dev->debug_entry);
 	google_bcl_remove_thermal(bcl_dev);
-	if (bcl_dev->enabled)
+	if (smp_load_acquire(&bcl_dev->enabled))
 		google_bcl_remove_qos(bcl_dev);
 	google_bcl_remove_votable(bcl_dev);
 	google_bcl_remove_data_logging(bcl_dev);
