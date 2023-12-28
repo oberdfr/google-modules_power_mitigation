@@ -6,6 +6,7 @@ filegroup(
     name = "headers",
     srcs = glob([
         "*.h",
+        "whi/*.h",
         "uapi/*.h",
     ]),
     visibility = [

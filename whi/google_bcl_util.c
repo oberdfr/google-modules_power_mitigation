@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * google_bcl_util.c Google bcl driver - Utility
+ *
+ * Copyright (c) 2023, Google LLC. All rights reserved.
+ *
+ */
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/platform_device.h>
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#include <linux/mfd/samsung/s2mpg10.h>
+#include <linux/mfd/samsung/s2mpg11.h>
+#include <linux/mfd/samsung/s2mpg10-register.h>
+#include <linux/mfd/samsung/s2mpg11-register.h>
+#elif IS_ENABLED(CONFIG_SOC_GS201)
+#include <linux/mfd/samsung/s2mpg12.h>
+#include <linux/mfd/samsung/s2mpg13.h>
+#include <linux/mfd/samsung/s2mpg12-register.h>
+#include <linux/mfd/samsung/s2mpg13-register.h>
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#include <linux/mfd/samsung/s2mpg1415.h>
+#include <linux/mfd/samsung/s2mpg1415-register.h>
+#endif
+
+#include <soc/google/exynos-cpupm.h>
+#include <soc/google/exynos-pm.h>
+#include <soc/google/exynos-pmu-if.h>
+#include "bcl.h"
+
+const unsigned int subsystem_pmu[] = {
+	PMU_ALIVE_CPU0_STATES,
+	PMU_ALIVE_CPU1_STATES,
+	PMU_ALIVE_CPU2_STATES,
+	PMU_ALIVE_TPU_STATES,
+	PMU_ALIVE_GPU_STATES,
+	PMU_ALIVE_AUR_STATES
+};
+
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg10_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg11_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg10_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg11_read_reg(i2c, reg, val)
+#elif IS_ENABLED(CONFIG_SOC_GS201)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg12_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg13_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg12_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg13_read_reg(i2c, reg, val)
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg14_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg15_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg14_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg15_read_reg(i2c, reg, val)
+#endif
+
+int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
+{
+	switch (pmic) {
+	case CORE_PMIC_SUB:
+		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_meter_i2c, reg, value);
+	case CORE_PMIC_MAIN:
+		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_meter_i2c, reg, value);
+	}
+	return 0;
+}
+
+int meter_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
+{
+	switch (pmic) {
+	case CORE_PMIC_SUB:
+		return PMIC_SUB_READ_REG((bcl_dev)->sub_meter_i2c, reg, value);
+	case CORE_PMIC_MAIN:
+		return PMIC_MAIN_READ_REG((bcl_dev)->main_meter_i2c, reg, value);
+	}
+	return 0;
+}
+
+int pmic_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
+{
+	switch (pmic) {
+	case CORE_PMIC_SUB:
+		return PMIC_SUB_WRITE_REG((bcl_dev)->sub_pmic_i2c, reg, value);
+	case CORE_PMIC_MAIN:
+		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_pmic_i2c, reg, value);
+	}
+	return 0;
+}
+
+int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
+{
+	switch (pmic) {
+	case CORE_PMIC_SUB:
+		return PMIC_SUB_READ_REG((bcl_dev)->sub_pmic_i2c, reg, value);
+	case CORE_PMIC_MAIN:
+		return PMIC_MAIN_READ_REG((bcl_dev)->main_pmic_i2c, reg, value);
+	}
+	return 0;
+}
+
+bool bcl_is_cluster_on(int cluster)
+{
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
+	unsigned int addr, value = 0;
+
+	if (cluster < CPU2_CLUSTER_MIN) {
+		addr = CLUSTER1_NONCPU_STATES;
+		exynos_pmu_read(addr, &value);
+		return value & BIT(4);
+	}
+	if (cluster == CPU2_CLUSTER_MIN) {
+		addr = CLUSTER2_NONCPU_STATES;
+		exynos_pmu_read(addr, &value);
+		return value & BIT(4);
+	}
+#endif
+	return false;
+}
+
+bool bcl_is_subsystem_on(unsigned int addr)
+{
+	unsigned int value;
+
+	switch (addr) {
+	case PMU_ALIVE_TPU_STATES:
+	case PMU_ALIVE_GPU_STATES:
+	case PMU_ALIVE_AUR_STATES:
+		exynos_pmu_read(addr, &value);
+		return !(value & BIT(7));
+	case PMU_ALIVE_CPU0_STATES:
+		return true;
+	case PMU_ALIVE_CPU1_STATES:
+		return bcl_is_cluster_on(CPU1_CLUSTER_MIN);
+	case PMU_ALIVE_CPU2_STATES:
+		return bcl_is_cluster_on(CPU2_CLUSTER_MIN);
+	}
+	return false;
+}
+
+bool bcl_disable_power(int cluster)
+{
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
+	int i;
+
+	if (cluster == SUBSYSTEM_CPU1) {
+		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++) {
+			if (bcl_is_cluster_on(i) == true) {
+				disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
+			} else
+				return false;
+		}
+	}
+	else if (cluster == SUBSYSTEM_CPU2) {
+		if (bcl_is_cluster_on(CPU2_CLUSTER_MIN) == true) {
+			disable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
+		} else {
+			return false;
+		}
+	}
+#endif
+	return true;
+}
+
+bool bcl_enable_power(int cluster)
+{
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
+	int i;
+
+	if (cluster == SUBSYSTEM_CPU1) {
+		for (i = CPU1_CLUSTER_MIN; i < CPU2_CLUSTER_MIN; i++) {
+			if (bcl_is_cluster_on(i) == true) {
+				enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
+			} else
+				return false;
+		}
+	}
+	else if (cluster == SUBSYSTEM_CPU2) {
+		if (bcl_is_cluster_on(CPU2_CLUSTER_MIN) == true) {
+			enable_power_mode(CPU2_CLUSTER_MIN, POWERMODE_TYPE_CLUSTER);
+		} else
+			return false;
+	}
+#endif
+	return true;
+}

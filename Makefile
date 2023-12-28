@@ -4,6 +4,7 @@ subdir-ccflags-y += \
 		-I$(KERNEL_SRC)/../private/google-modules/bms
 
 obj-$(CONFIG_GOOGLE_BCL) += google_bcl.o
+ifeq ($(CONFIG_SOC_ZUMA),y)
 google_bcl-y			+= google_bcl_core.o
 google_bcl-y			+= google_bcl_sysfs.o
 google_bcl-y			+= google_bcl_util.o
@@ -14,6 +15,13 @@ google_bcl-y			+= max77759_vdroop.o
 google_bcl-y			+= max77779_vdroop.o
 google_bcl-y			+= google_bcl_votable.o
 google_bcl-y			+= google_bcl_data_logging.o
+else
+google_bcl-y			+= whi/google_bcl_core.o
+google_bcl-y			+= whi/google_bcl_sysfs.o
+google_bcl-y			+= whi/google_bcl_util.o
+google_bcl-y			+= whi/google_bcl_debugfs.o
+google_bcl-y			+= whi/max77759_vdroop.o
+endif
 
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 M ?= $(shell pwd)

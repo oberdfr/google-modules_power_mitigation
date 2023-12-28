@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+// TODO: merge bcl-whi.h
+#if ! IS_ENABLED(CONFIG_SOC_ZUMA)
+#include "whi/bcl.h"
+#else
+
 #ifndef __BCL_H
 #define __BCL_H
 
@@ -372,4 +377,7 @@ int google_bcl_init_data_logging(struct bcl_device *bcl_dev);
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx);
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev);
 void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state);
+
 #endif /* __BCL_H */
+
+#endif // ! IS_ENABLED(CONFIG_SOC_ZUMA)
