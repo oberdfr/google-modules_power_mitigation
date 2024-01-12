@@ -613,10 +613,10 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, lvl;
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO1, &lvl);
 	batoilo_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 
 	ret = google_bcl_register_zone(bcl_dev, UVLO1, "UVLO1",
 				      IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
@@ -674,11 +674,11 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 		bcl_dev->batoilo_lower_limit = ret ? BO_LOWER_LIMIT : retval;
 		ret = of_property_read_u32(p_np, "batoilo_upper", &retval);
 		bcl_dev->batoilo_upper_limit = ret ? BO_UPPER_LIMIT : retval;
-		bcl_dev->intf_pmic_i2c = i2c;
-		bcl_dev->irq_pmic_i2c = i2c;
+		bcl_dev->intf_pmic_dev = &i2c->dev;
+		bcl_dev->irq_pmic_dev = &i2c->dev;
 	}
 	of_node_put(p_np);
-	if (!bcl_dev->intf_pmic_i2c) {
+	if (!bcl_dev->intf_pmic_dev) {
 		dev_err(bcl_dev->device, "Interface PMIC device not found\n");
 		return -ENODEV;
 	}
@@ -690,7 +690,7 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev)
 				dev_err(bcl_dev->device, "Cannot find PMIC I2C\n");
 				return -ENODEV;
 			}
-			bcl_dev->irq_pmic_i2c = i2c;
+			bcl_dev->irq_pmic_dev = &i2c->dev;
 		}
 		of_node_put(p_np);
 	}

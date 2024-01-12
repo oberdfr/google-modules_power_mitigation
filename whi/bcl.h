@@ -194,8 +194,8 @@ struct bcl_device {
 	struct i2c_client *sub_pmic_i2c;
 	struct i2c_client *main_meter_i2c;
 	struct i2c_client *sub_meter_i2c;
-	struct i2c_client *intf_pmic_i2c;
-	struct i2c_client *irq_pmic_i2c;
+	struct device *intf_pmic_dev;
+	struct device *irq_pmic_dev;
 
 	struct mutex ratio_lock;
 	struct bcl_core_conf core_conf[SUBSYSTEM_SOURCE_MAX];
@@ -270,8 +270,8 @@ int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value);
 int meter_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value);
 u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setting);
 void google_init_debugfs(struct bcl_device *bcl_dev);
-int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val);
-int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val);
+int uvlo_reg_read(struct device *dev, enum IFPMIC ifpmic, int triggered, unsigned int *val);
+int batoilo_reg_read(struct device *dev, enum IFPMIC ifpmic, int oilo, unsigned int *val);
 int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77759_clr_irq(struct bcl_device *bcl_dev);
 
