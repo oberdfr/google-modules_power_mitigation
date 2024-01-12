@@ -1289,7 +1289,7 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 	struct device_node *np = bcl_dev->device->of_node;
 
 	ret = of_property_read_u32(np, "google,ifpmic", &retval);
-	bcl_dev->ifpmic = (retval == MAX77759) ? MAX77759 : MAX77779;
+	bcl_dev->ifpmic = (retval == M77759) ? MAX77759 : MAX77779;
 
 	bcl_dev->intf_pmic_dev = max77779_get_dev(bcl_dev->device, "google,charger");
 	if (!bcl_dev->intf_pmic_dev) {
