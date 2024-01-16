@@ -19,11 +19,20 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include "bcl.h"
-#include <dt-bindings/interrupt-controller/zuma.h>
 #include <linux/regulator/pmic_class.h>
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
+#include <dt-bindings/interrupt-controller/zuma.h>
 #include <linux/mfd/samsung/s2mpg14-register.h>
 #include <linux/mfd/samsung/s2mpg15-register.h>
+#include <max77779_regs.h>
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG12)
+#include <dt-bindings/interrupt-controller/gs201.h>
+#include <linux/mfd/samsung/s2mpg12-register.h>
+#include <linux/mfd/samsung/s2mpg13-register.h>
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+#include <dt-bindings/interrupt-controller/gs101.h>
+#include <linux/mfd/samsung/s2mpg10-register.h>
+#include <linux/mfd/samsung/s2mpg11-register.h>
 #endif
 #include <max77759_regs.h>
 #include <max77779.h>
@@ -558,6 +567,10 @@ static ssize_t db_settings_store(struct device *dev, struct device_attribute *at
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	int value;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	if (kstrtouint(buf, 16, &value) < 0)
 		return -EINVAL;
 
@@ -566,7 +579,7 @@ static ssize_t db_settings_store(struct device *dev, struct device_attribute *at
 
 	google_set_db(bcl_dev, value, src);
 
-        return size;
+	return size;
 }
 
 static ssize_t db_settings_show(struct device *dev, struct device_attribute *attr,
@@ -574,6 +587,10 @@ static ssize_t db_settings_show(struct device *dev, struct device_attribute *att
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
 
 	if ((!bcl_dev->sysreg_cpucl0) || (src == LITTLE) || (src == MPMMEN))
 		return -EIO;
@@ -2791,6 +2808,10 @@ static ssize_t main_pwrwarn_threshold_show(struct device *dev, struct device_att
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	int ret, idx;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	ret = sscanf(attr->attr.name, "main_pwrwarn_threshold%d", &idx);
 	if (ret != 1)
 		return -EINVAL;
@@ -2807,6 +2828,10 @@ static ssize_t main_pwrwarn_threshold_store(struct device *dev, struct device_at
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	int ret, idx, value;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	ret = kstrtou32(buf, 10, &value);
 	if (ret)
 		return ret;
@@ -2819,7 +2844,7 @@ static ssize_t main_pwrwarn_threshold_store(struct device *dev, struct device_at
 	bcl_dev->main_setting[idx] = value;
 	bcl_dev->main_limit[idx] = settings_to_current(bcl_dev, CORE_PMIC_MAIN, idx,
 	                                               value << LPF_CURRENT_SHIFT);
-	meter_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_METER_PWR_WARN0 + idx, value);
+	meter_write(CORE_PMIC_MAIN, bcl_dev, MAIN_METER_PWR_WARN0 + idx, value);
 
 	return size;
 }
@@ -2830,6 +2855,10 @@ static ssize_t sub_pwrwarn_threshold_show(struct device *dev, struct device_attr
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	int ret, idx;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
 
 	ret = sscanf(attr->attr.name, "sub_pwrwarn_threshold%d", &idx);
 	if (ret != 1)
@@ -2847,6 +2876,10 @@ static ssize_t sub_pwrwarn_threshold_store(struct device *dev, struct device_att
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	int ret, idx, value;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	ret = kstrtou32(buf, 10, &value);
 	if (ret)
 		return ret;
@@ -2859,7 +2892,7 @@ static ssize_t sub_pwrwarn_threshold_store(struct device *dev, struct device_att
 	bcl_dev->sub_setting[idx] = value;
 	bcl_dev->sub_limit[idx] = settings_to_current(bcl_dev, CORE_PMIC_SUB, idx,
 	                                              value << LPF_CURRENT_SHIFT);
-	meter_write(CORE_PMIC_SUB, bcl_dev, S2MPG15_METER_PWR_WARN0 + idx, value);
+	meter_write(CORE_PMIC_SUB, bcl_dev, SUB_METER_PWR_WARN0 + idx, value);
 
 	return size;
 }
@@ -2930,6 +2963,10 @@ static ssize_t qos_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	struct bcl_zone *zone;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	if (!bcl_dev)
 		return -EIO;
 	zone = bcl_dev->zone[idx];
@@ -2948,6 +2985,10 @@ static ssize_t qos_store(struct bcl_device *bcl_dev, int idx, const char *buf, s
 {
 	unsigned int cpu0, cpu1, cpu2, gpu, tpu;
 	struct bcl_zone *zone;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
 
 	if (sscanf(buf, "%d,%d,%d,%d,%d", &cpu0, &cpu1, &cpu2, &gpu, &tpu) != 5)
 		return -EINVAL;
@@ -3158,6 +3199,11 @@ static ssize_t less_than_5ms_count_show(struct device *dev, struct device_attrib
 	ssize_t count = 0;
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
 		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
 			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
@@ -3197,6 +3243,11 @@ static ssize_t between_5ms_to_10ms_count_show(struct device *dev, struct device_
 	ssize_t count = 0;
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
 		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
 			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
@@ -3238,6 +3289,11 @@ static ssize_t greater_than_10ms_count_show(struct device *dev, struct device_at
 	ssize_t count = 0;
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
 	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
 		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
 			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
@@ -3737,6 +3793,10 @@ void bunch_mitigation_threshold_addr(struct bcl_mitigation_conf *mitigation_conf
 					unsigned int *addr[METER_CHANNEL_MAX]) {
 	int i;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return;
+#endif
+
 	for (i = 0; i < METER_CHANNEL_MAX; i++)
 		addr[i] = &mitigation_conf[i].threshold;
 }
@@ -3745,6 +3805,10 @@ void bunch_mitigation_module_id_addr(struct bcl_mitigation_conf *mitigation_conf
 					unsigned int *addr[METER_CHANNEL_MAX]) {
 	int i;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return;
+#endif
+
 	for (i = 0; i < METER_CHANNEL_MAX; i++)
 		addr[i] = &mitigation_conf[i].module_id;
 }
@@ -3752,6 +3816,10 @@ void bunch_mitigation_module_id_addr(struct bcl_mitigation_conf *mitigation_conf
 static ssize_t mitigation_show(unsigned int *addr[METER_CHANNEL_MAX], char *buf)
 {
 	int i, at = 0;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
 
 	for (i = 0; i < METER_CHANNEL_MAX; i++)
 		at += sysfs_emit_at(buf, at, "%d,", *addr[i]);
@@ -3767,6 +3835,10 @@ static ssize_t mitigation_store(unsigned int *addr[METER_CHANNEL_MAX],
 	char *sep_str = str;
 	char *token = NULL;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	goto mitigation_store_exit;
+#endif
+
 	if (!sep_str)
 		goto mitigation_store_exit;
 
@@ -3780,6 +3852,10 @@ static ssize_t mitigation_store(unsigned int *addr[METER_CHANNEL_MAX],
 
 mitigation_store_exit:
 	kfree(str);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
 	return size;
 }
 

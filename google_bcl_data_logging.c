@@ -26,6 +26,7 @@ void compute_mitigation_modules(struct bcl_device *bcl_dev,
 
 static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 {
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	struct bcl_device *bcl_dev = container_of(work, struct bcl_device, main_meter_work);
 	struct odpm_info *info = bcl_dev->main_odpm;
 	int i = 0;
@@ -46,10 +47,12 @@ static void data_logging_main_odpm_lpf_task(struct kthread_work *work)
 		if (++j == DATA_LOGGING_LEN)
 			j = 0;
 	}
+#endif
 }
 
 static void data_logging_sub_odpm_lpf_task(struct kthread_work *work)
 {
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	struct bcl_device *bcl_dev = container_of(work, struct bcl_device, sub_meter_work);
 	struct odpm_info *info = bcl_dev->sub_odpm;
 	int i = 0;
@@ -68,6 +71,7 @@ static void data_logging_sub_odpm_lpf_task(struct kthread_work *work)
 		if (++j == DATA_LOGGING_LEN)
 			j = 0;
 	}
+#endif
 }
 
 static int google_bcl_create_thread(struct bcl_device *bcl_dev)
