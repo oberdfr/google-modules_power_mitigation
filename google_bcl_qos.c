@@ -11,7 +11,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 #include <linux/mfd/samsung/s2mpg1415.h>
 #include <linux/mfd/samsung/s2mpg1415-register.h>
 #endif
@@ -48,6 +48,7 @@ void google_bcl_qos_update(struct bcl_zone *zone, bool throttle)
 	                      zone->bcl_stats.voltage, zone->bcl_stats.capacity);
 }
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 static int init_freq_qos(struct bcl_device *bcl_dev, struct qos_throttle_limit *throttle)
 {
 	struct cpufreq_policy *policy = NULL;
@@ -93,11 +94,12 @@ fail1:
 	freq_qos_remove_request(&throttle->cpu0_max_qos_req);
 	return ret;
 }
+#endif
 
 int google_bcl_setup_qos(struct bcl_device *bcl_dev)
 {
 	int ret = 0;
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	int i;
 	struct bcl_zone *zone;
 
@@ -127,7 +129,7 @@ fail:
 
 void google_bcl_remove_qos(struct bcl_device *bcl_dev)
 {
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	int i;
 	struct bcl_zone *zone;
 

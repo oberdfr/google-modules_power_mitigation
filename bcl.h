@@ -1,10 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-// TODO: merge bcl-whi.h
-#if ! IS_ENABLED(CONFIG_SOC_ZUMA)
-#include "whi/bcl.h"
-#else
-
 #ifndef __BCL_H
 #define __BCL_H
 
@@ -16,8 +11,25 @@
 #include <linux/workqueue.h>
 #include <soc/google/exynos_pm_qos.h>
 #include <dt-bindings/power/s2mpg1x-power.h>
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 #include <dt-bindings/soc/google/zumapro-bcl.h>
+#elif IS_ENABLED(CONFIG_SOC_GS101)
+#include <dt-bindings/soc/google/gs101-bcl.h>
+#elif IS_ENABLED(CONFIG_SOC_GS201)
+#include <dt-bindings/soc/google/gs201-bcl.h>
+#endif
 #include "uapi/brownout_stats.h"
+
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#define MAIN_METER_PWR_WARN0	S2MPG10_METER_PWR_WARN0
+#define SUB_METER_PWR_WARN0	S2MPG11_METER_PWR_WARN0
+#elif IS_ENABLED(CONFIG_SOC_GS201)
+#define MAIN_METER_PWR_WARN0	S2MPG12_METER_PWR_WARN0
+#define SUB_METER_PWR_WARN0	S2MPG13_METER_PWR_WARN0
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#define MAIN_METER_PWR_WARN0	S2MPG14_METER_PWR_WARN0
+#define SUB_METER_PWR_WARN0	S2MPG15_METER_PWR_WARN0
+#endif
 
 #define bcl_cb_get_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
         max77759_get_irq(bcl, v) : max77779_get_irq(bcl, v))
@@ -41,6 +53,27 @@
 #define MITIGATION_INPUT_DELIM		","
 #define MITIGATION_PRINT_BUF_SIZE  	256
 #define MITIGATION_TMP_BUF_SIZE	16
+
+#if IS_ENABLED(CONFIG_SOC_GS101)
+#define MAIN_OFFSRC1 S2MPG10_PM_OFFSRC
+#define MAIN_OFFSRC2 S2MPG10_PM_OFFSRC
+#define SUB_OFFSRC1 S2MPG11_PM_OFFSRC
+#define SUB_OFFSRC2 S2MPG11_PM_OFFSRC
+#define MAIN_PWRONSRC S2MPG10_PM_PWRONSRC
+#elif IS_ENABLED(CONFIG_SOC_GS201)
+#define MAIN_OFFSRC1 S2MPG12_PM_OFFSRC1
+#define MAIN_OFFSRC2 S2MPG12_PM_OFFSRC2
+#define SUB_OFFSRC1 S2MPG13_PM_OFFSRC
+#define SUB_OFFSRC2 S2MPG13_PM_OFFSRC
+#define MAIN_PWRONSRC S2MPG12_PM_PWRONSRC
+#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#define MAIN_OFFSRC1 S2MPG14_PM_OFFSRC1
+#define MAIN_OFFSRC2 S2MPG14_PM_OFFSRC2
+#define SUB_OFFSRC1 S2MPG15_PM_OFFSRC1
+#define SUB_OFFSRC2 S2MPG15_PM_OFFSRC2
+#define MAIN_PWRONSRC S2MPG14_PM_PWRONSRC
+#endif
+/* This driver determines if HW was throttled due to SMPL/OCP */
 
 enum CPU_CLUSTER {
 	LITTLE_CLUSTER,
@@ -379,5 +412,3 @@ void google_bcl_remove_data_logging(struct bcl_device *bcl_dev);
 void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state);
 
 #endif /* __BCL_H */
-
-#endif // ! IS_ENABLED(CONFIG_SOC_ZUMA)

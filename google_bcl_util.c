@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * google_bcl_core.c Google bcl driver
+ * google_bcl_util.c Google bcl driver - Utility
  *
  * Copyright (c) 2023, Google LLC. All rights reserved.
  *
@@ -9,12 +9,17 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
-#if IS_ENABLED(CONFIG_SOC_GS101)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
 #include <linux/mfd/samsung/s2mpg10.h>
 #include <linux/mfd/samsung/s2mpg11.h>
 #include <linux/mfd/samsung/s2mpg10-register.h>
 #include <linux/mfd/samsung/s2mpg11-register.h>
-#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG12)
+#include <linux/mfd/samsung/s2mpg12.h>
+#include <linux/mfd/samsung/s2mpg13.h>
+#include <linux/mfd/samsung/s2mpg12-register.h>
+#include <linux/mfd/samsung/s2mpg13-register.h>
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 #include <linux/mfd/samsung/s2mpg1415.h>
 #include <linux/mfd/samsung/s2mpg1415-register.h>
 #endif
@@ -34,12 +39,17 @@ const unsigned int subsystem_pmu[] = {
 	PMU_ALIVE_AUR_STATES
 };
 
-#if IS_ENABLED(CONFIG_SOC_GS101)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
 #define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg10_write_reg(i2c, reg, val)
 #define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg11_write_reg(i2c, reg, val)
 #define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg10_read_reg(i2c, reg, val)
 #define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg11_read_reg(i2c, reg, val)
-#elif IS_ENABLED(CONFIG_SOC_ZUMA)
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG12)
+#define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg12_write_reg(i2c, reg, val)
+#define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg13_write_reg(i2c, reg, val)
+#define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg12_read_reg(i2c, reg, val)
+#define PMIC_SUB_READ_REG(i2c, reg, val) s2mpg13_read_reg(i2c, reg, val)
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 #define PMIC_MAIN_WRITE_REG(i2c, reg, val) s2mpg14_write_reg(i2c, reg, val)
 #define PMIC_SUB_WRITE_REG(i2c, reg, val) s2mpg15_write_reg(i2c, reg, val)
 #define PMIC_MAIN_READ_REG(i2c, reg, val) s2mpg14_read_reg(i2c, reg, val)
@@ -119,7 +129,7 @@ int pmic_read(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 *value)
 
 bool bcl_is_cluster_on(struct bcl_device *bcl_dev, int cluster)
 {
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	unsigned int addr, value = 0;
 
 	if (cluster < bcl_dev->cpu2_cluster) {
@@ -159,7 +169,7 @@ bool bcl_is_subsystem_on(struct bcl_device *bcl_dev, unsigned int addr)
 
 bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 {
-	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
+	if (IS_ENABLED(CONFIG_REGULATOR_S2MPG14) || IS_ENABLED(CONFIG_REGULATOR_S2MPG12)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
 			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
@@ -179,7 +189,7 @@ bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 
 bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 {
-	if (IS_ENABLED(CONFIG_SOC_ZUMA) || IS_ENABLED(CONFIG_SOC_GS201)) {
+	if (IS_ENABLED(CONFIG_REGULATOR_S2MPG14) || IS_ENABLED(CONFIG_REGULATOR_S2MPG12)) {
 		int i;
 		if (cluster == SUBSYSTEM_CPU1) {
 			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))

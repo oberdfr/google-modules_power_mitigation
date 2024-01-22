@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include "bcl.h"
 
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 static enum BCL_BATT_IRQ id_to_ind(int id)
 {
 	switch (id) {
@@ -24,7 +25,9 @@ static enum BCL_BATT_IRQ id_to_ind(int id)
 	}
 	return MAX_BCL_BATT_IRQ;
 }
+#endif
 
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 				enum CONCURRENT_PWRWARN_IRQ pwrwarn, ktime_t end_time)
 {
@@ -42,9 +45,11 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 
 	bcl_dev->ifpmic_irq_bins[batt][pwrwarn].start_time = 0;
 }
+#endif
 
 void update_irq_end_times(struct bcl_device *bcl_dev, int id)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t end_time;
 	int irq_ind = -1;
 	int i;
@@ -72,6 +77,7 @@ void update_irq_end_times(struct bcl_device *bcl_dev, int id)
 		if (pwrwarn_irq_triggered)
 			bin_incr_ifpmic(bcl_dev, irq_ind, i, end_time);
 	}
+#endif
 }
 
 /*
@@ -80,6 +86,7 @@ void update_irq_end_times(struct bcl_device *bcl_dev, int id)
  */
 void update_irq_start_times(struct bcl_device *bcl_dev, int id)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t start_time;
 
 	/* Check if it is a input IRQ */
@@ -97,6 +104,7 @@ void update_irq_start_times(struct bcl_device *bcl_dev, int id)
 		bcl_dev->ifpmic_irq_bins[irq_ind][MMWAVE_BCL_BIN].start_time = start_time;
 	if (bcl_dev->main_pwr_warn_triggered[bcl_dev->rffe_channel])
 		bcl_dev->ifpmic_irq_bins[irq_ind][RFFE_BCL_BIN].start_time = start_time;
+#endif
 }
 
 void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
@@ -104,6 +112,7 @@ void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
 					bool *pwr_warn_triggered,
 					enum CONCURRENT_PWRWARN_IRQ bin_ind)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t start_time;
 	int i;
 	bool is_rf = bcl_dev->rffe_channel == id;
@@ -119,11 +128,13 @@ void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
 		}
 	}
 	bins[id].start_time = start_time;
+#endif
 }
 
 void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id, struct irq_duration_stats *bins,
 				enum CONCURRENT_PWRWARN_IRQ bin_ind)
 {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
 	ktime_t end_time;
 	ktime_t time_delta;
 	int i;
@@ -146,5 +157,6 @@ void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id, struct irq_dura
 	else
 		atomic_inc(&(bins[id].gt_10ms_count));
 	bins[id].start_time = 0;
+#endif
 }
 
