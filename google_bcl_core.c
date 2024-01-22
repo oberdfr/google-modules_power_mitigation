@@ -285,7 +285,6 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	bcl_dev = zone->parent;
 	zone->bcl_cur_lvl = 0;
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
-	google_bcl_upstream_state(zone, START);
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, false);
 #endif
@@ -311,6 +310,9 @@ static void google_warn_work(struct work_struct *work)
 	if (!bcl_dev)
 		return;
 	if (!google_warn_check(zone)) {
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
+		google_bcl_upstream_state(zone, DISABLED);
+#endif
 		google_bcl_release_throttling(zone);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
@@ -670,6 +672,9 @@ static void google_irq_untriggered_work(struct work_struct *work)
 
 	bcl_dev = zone->parent;
 
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
+	google_bcl_upstream_state(zone, START);
+#endif
 	google_bcl_release_throttling(zone);
 	/* IRQ falling edge */
 	if (zone->irq_type == IF_PMIC)
