@@ -1258,7 +1258,7 @@ static int set_ocp_lvl(struct bcl_device *bcl_dev, u64 val, u8 addr, u8 pmic, u8
 	u8 value;
 	int ret;
 
-	if (!bcl_dev)
+	if (!bcl_dev || !bcl_dev->zone[id])
 		return -EIO;
 	if (val < llimit || val > ulimit) {
 		dev_err(bcl_dev->device, "OCP_WARN LEVEL %llu outside of range %d - %d mA.", val,
@@ -1426,7 +1426,6 @@ static ssize_t soft_ocp_cpu1_lvl_show(struct device *dev, struct device_attribut
 	                CPU1_UPPER_LIMIT, CPU1_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_cpu1_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1459,7 +1458,6 @@ static ssize_t soft_ocp_cpu2_lvl_show(struct device *dev, struct device_attribut
 	                CPU2_UPPER_LIMIT, CPU2_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_cpu2_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1492,7 +1490,6 @@ static ssize_t soft_ocp_tpu_lvl_show(struct device *dev, struct device_attribute
 	                TPU_UPPER_LIMIT, TPU_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_tpu_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1525,7 +1522,6 @@ static ssize_t soft_ocp_gpu_lvl_show(struct device *dev, struct device_attribute
 	                GPU_UPPER_LIMIT, GPU_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_gpu_lvl_store(struct device *dev, struct device_attribute *attr,

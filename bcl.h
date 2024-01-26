@@ -215,6 +215,7 @@ struct bcl_zone {
 	bool disabled;
 	bool irq_reg;
 	bool conf_qos;
+	const char *devname;
 	u32 current_state;
 };
 
