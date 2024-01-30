@@ -20,21 +20,22 @@
 #include <linux/regmap.h>
 #include "bcl.h"
 #include <linux/regulator/pmic_class.h>
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 #include <dt-bindings/interrupt-controller/zuma.h>
 #include <linux/mfd/samsung/s2mpg14-register.h>
 #include <linux/mfd/samsung/s2mpg15-register.h>
 #include <max77779_regs.h>
-#elif IS_ENABLED(CONFIG_SOC_GS201)
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG12)
 #include <dt-bindings/interrupt-controller/gs201.h>
 #include <linux/mfd/samsung/s2mpg12-register.h>
 #include <linux/mfd/samsung/s2mpg13-register.h>
-#elif IS_ENABLED(CONFIG_SOC_GS101)
+#elif IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
 #include <dt-bindings/interrupt-controller/gs101.h>
 #include <linux/mfd/samsung/s2mpg10-register.h>
 #include <linux/mfd/samsung/s2mpg11-register.h>
 #endif
 #include <max77759_regs.h>
+#include <max77779.h>
 #include <max777x9_bcl.h>
 
 const unsigned int clk_stats_offset[] = {
@@ -47,7 +48,7 @@ const unsigned int clk_stats_offset[] = {
 };
 
 static const char * const batt_irq_names[] = {
-	"uvlo1", "uvlo2", "batoilo"
+	"uvlo1", "uvlo2", "batoilo", "batoilo2"
 };
 
 static const char * const concurrent_pwrwarn_irq_names[] = {
@@ -559,39 +560,76 @@ static ssize_t soft_ocp_gpu_time_show(struct device *dev, struct device_attribut
 
 static DEVICE_ATTR_RO(soft_ocp_gpu_time);
 
-static ssize_t irq_delay_store(struct device *dev,
-                               struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t db_settings_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t size, enum MPMM_SOURCE src)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-	unsigned int value;
-	int ret;
+	int value;
 
-	ret = sscanf(buf, "%d", &value);
-	if (ret != 1)
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	if (kstrtouint(buf, 16, &value) < 0)
 		return -EINVAL;
 
-        bcl_dev->irq_delay = value;
+	if (src != BIG && src != MID)
+		return -EINVAL;
+
+	google_set_db(bcl_dev, value, src);
 
 	return size;
 }
 
-static ssize_t irq_delay_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t db_settings_show(struct device *dev, struct device_attribute *attr,
+				char *buf, enum MPMM_SOURCE src)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->irq_delay);
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	if ((!bcl_dev->sysreg_cpucl0) || (src == LITTLE) || (src == MPMMEN))
+		return -EIO;
+
+	return sysfs_emit(buf, "%#x\n", google_get_db(bcl_dev, src));
 }
 
-static DEVICE_ATTR_RW(irq_delay);
+static ssize_t mid_db_settings_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	return db_settings_store(dev, attr, buf, size, MID);
+}
+
+static ssize_t mid_db_settings_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return db_settings_show(dev, attr, buf, MID);
+}
+
+static DEVICE_ATTR_RW(mid_db_settings);
+
+static ssize_t big_db_settings_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	return db_settings_store(dev, attr, buf, size, BIG);
+}
+
+static ssize_t big_db_settings_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return db_settings_show(dev, attr, buf, BIG);
+}
+
+static DEVICE_ATTR_RW(big_db_settings);
 
 static ssize_t enable_mitigation_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->enabled);
+	return sysfs_emit(buf, "%d\n", READ_ONCE(bcl_dev->enabled));
 }
 
 static ssize_t enable_mitigation_store(struct device *dev, struct device_attribute *attr,
@@ -608,23 +646,23 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 	if (ret)
 		return ret;
 
-	if (bcl_dev->enabled == value)
+	if (smp_load_acquire(&bcl_dev->enabled) == value)
 		return size;
 
-	bcl_dev->enabled = value;
-	if (bcl_dev->enabled) {
+	/* Kernel filesystem serializes sysfs store callbacks */
+	smp_store_release(&bcl_dev->enabled, value);
+	if (value) {
 		bcl_dev->core_conf[SUBSYSTEM_TPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_GPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep |= 0x1;
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(i)) {
-				reg = __raw_readl(addr);
-				__raw_writel(reg | 0x1, addr);
-				bcl_enable_power(i);
-			}
-			mutex_unlock(&bcl_dev->ratio_lock);
+			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+			if (ret < 0)
+				return ret;
+			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+			if (ret < 0)
+				return ret;
 		}
 		for (i = 0; i < TRIGGERED_SOURCE_MAX; i++)
 			if (bcl_dev->zone[i] && i != BATOILO)
@@ -635,13 +673,12 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep &= ~(1 << 0);
 		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
 			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			mutex_lock(&bcl_dev->ratio_lock);
-			if (bcl_disable_power(i)) {
-				reg = __raw_readl(addr);
-				__raw_writel(reg & ~(1 << 0), addr);
-				bcl_enable_power(i);
-			}
-			mutex_unlock(&bcl_dev->ratio_lock);
+			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+			if (ret < 0)
+				return ret;
+			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+			if (ret < 0)
+				return ret;
 		}
 		for (i = 0; i < TRIGGERED_SOURCE_MAX; i++)
 			if (bcl_dev->zone[i] && i != BATOILO)
@@ -692,6 +729,46 @@ static ssize_t sub_offsrc2_show(struct device *dev, struct device_attribute *att
 
 static DEVICE_ATTR_RO(sub_offsrc2);
 
+static ssize_t evt_cnt_uvlo1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.uvlo1);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_uvlo1);
+
+static ssize_t evt_cnt_uvlo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.uvlo2);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_uvlo2);
+
+static ssize_t evt_cnt_batoilo1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.batoilo1);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_batoilo1);
+
+static ssize_t evt_cnt_batoilo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%i\n", bcl_dev->evt_cnt.batoilo2);
+}
+
+static DEVICE_ATTR_RO(evt_cnt_batoilo2);
+
 static ssize_t pwronsrc_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -707,19 +784,24 @@ static ssize_t ready_show(struct device *dev, struct device_attribute *attr, cha
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 
-	return sysfs_emit(buf, "%d\n", bcl_dev->ready);
+	return sysfs_emit(buf, "%d\n", READ_ONCE(bcl_dev->enabled));
 }
 static DEVICE_ATTR_RO(ready);
 
 static struct attribute *instr_attrs[] = {
+	&dev_attr_mid_db_settings.attr,
+	&dev_attr_big_db_settings.attr,
 	&dev_attr_enable_mitigation.attr,
 	&dev_attr_main_offsrc1.attr,
 	&dev_attr_main_offsrc2.attr,
 	&dev_attr_sub_offsrc1.attr,
 	&dev_attr_sub_offsrc2.attr,
+	&dev_attr_evt_cnt_uvlo1.attr,
+	&dev_attr_evt_cnt_uvlo2.attr,
+	&dev_attr_evt_cnt_batoilo1.attr,
+	&dev_attr_evt_cnt_batoilo2.attr,
 	&dev_attr_pwronsrc.attr,
 	&dev_attr_ready.attr,
-	&dev_attr_irq_delay.attr,
 	NULL,
 };
 
@@ -728,45 +810,70 @@ static const struct attribute_group instr_group = {
 	.name = "instruction",
 };
 
-int uvlo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int triggered, unsigned int *val)
+int uvlo_reg_read(struct device *dev, enum IFPMIC ifpmic, int triggered, unsigned int *val)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
-	reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
-	ret = max77759_external_reg_read(client, reg, &regval);
-	if (ret < 0)
-		return -EINVAL;
-	if (triggered == UVLO1)
-		*val = _chg_cnfg_15_sys_uvlo1_get(regval);
-	else
-		*val = _chg_cnfg_16_sys_uvlo2_get(regval);
+	if (ifpmic == MAX77779) {
+		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (triggered == UVLO1)
+			*val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_get(regval);
+		else
+			*val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_get(regval);
+	} else {
+		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
+		ret = max77759_external_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (triggered == UVLO1)
+			*val = _chg_cnfg_15_sys_uvlo1_get(regval);
+		else
+			*val = _chg_cnfg_16_sys_uvlo2_get(regval);
+	}
 	return ret;
 }
 
-static int uvlo_reg_write(struct i2c_client *client, uint8_t val,
+static int uvlo_reg_write(struct device *dev, uint8_t val,
 			  enum IFPMIC ifpmic, int triggered)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
-	reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
-	ret = max77759_external_reg_read(client, reg, &regval);
-	if (ret < 0)
-		return -EINVAL;
-	if (triggered == UVLO1)
-		regval = _chg_cnfg_15_sys_uvlo1_set(regval, val);
-	else
-		regval = _chg_cnfg_16_sys_uvlo2_set(regval, val);
-	ret = max77759_external_reg_write(client, reg, regval);
-	if (ret < 0)
-		return -EINVAL;
+	if (ifpmic == MAX77779) {
+		reg = (triggered == UVLO1) ? MAX77779_SYS_UVLO1_CNFG_0 : MAX77779_SYS_UVLO2_CNFG_0;
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (triggered == UVLO1)
+			regval = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(regval, val);
+		else
+			regval = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(regval, val);
+		ret = max77779_external_chg_reg_write(dev, reg, regval);
+		if (ret < 0)
+			return -EINVAL;
+	} else {
+		reg = (triggered == UVLO1) ? MAX77759_CHG_CNFG_15 : MAX77759_CHG_CNFG_16;
+		ret = max77759_external_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (triggered == UVLO1)
+			regval = _chg_cnfg_15_sys_uvlo1_set(regval, val);
+		else
+			regval = _chg_cnfg_16_sys_uvlo2_set(regval, val);
+		ret = max77759_external_reg_write(dev, reg, regval);
+		if (ret < 0)
+			return -EINVAL;
+	}
 	return ret;
 }
 
@@ -780,9 +887,9 @@ static ssize_t uvlo1_lvl_show(struct device *dev, struct device_attribute *attr,
 		return -EIO;
 	if (!bcl_dev->zone[UVLO1])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
 	bcl_dev->zone[UVLO1]->bcl_lvl = VD_BATTERY_VOLTAGE - VD_STEP * uvlo1_lvl +
 			VD_LOWER_LIMIT - THERMAL_HYST_LEVEL;
 	return sysfs_emit(buf, "%dmV\n", VD_STEP * uvlo1_lvl + VD_LOWER_LIMIT);
@@ -810,11 +917,11 @@ static ssize_t uvlo1_lvl_store(struct device *dev,
 			VD_LOWER_LIMIT, VD_UPPER_LIMIT);
 		return -EINVAL;
 	}
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EIO;
 	lvl = (value - VD_LOWER_LIMIT) / VD_STEP;
 	disable_irq(bcl_dev->zone[UVLO1]->bcl_irq);
-	ret = uvlo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, UVLO1);
+	ret = uvlo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, UVLO1);
 	enable_irq(bcl_dev->zone[UVLO1]->bcl_irq);
 	if (ret)
 		return ret;
@@ -839,9 +946,9 @@ static ssize_t uvlo2_lvl_show(struct device *dev, struct device_attribute *attr,
 		return -EIO;
 	if (!bcl_dev->zone[UVLO2])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	uvlo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
+	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 	bcl_dev->zone[UVLO1]->bcl_lvl = VD_BATTERY_VOLTAGE - VD_STEP * uvlo2_lvl +
 			VD_LOWER_LIMIT - THERMAL_HYST_LEVEL;
 	return sysfs_emit(buf, "%dmV\n", VD_STEP * uvlo2_lvl + VD_LOWER_LIMIT);
@@ -869,11 +976,11 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 			VD_LOWER_LIMIT, VD_UPPER_LIMIT);
 		return -EINVAL;
 	}
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EIO;
 	lvl = (value - VD_LOWER_LIMIT) / VD_STEP;
 	disable_irq(bcl_dev->zone[UVLO2]->bcl_irq);
-	ret = uvlo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, UVLO2);
+	ret = uvlo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, UVLO2);
 	enable_irq(bcl_dev->zone[UVLO2]->bcl_irq);
 	if (ret)
 		return ret;
@@ -887,39 +994,64 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 
 static DEVICE_ATTR_RW(uvlo2_lvl);
 
-int batoilo_reg_read(struct i2c_client *client, enum IFPMIC ifpmic, int oilo, unsigned int *val)
+int batoilo_reg_read(struct device *dev, enum IFPMIC ifpmic, int oilo, unsigned int *val)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
-	reg = MAX77759_CHG_CNFG_14;
-	ret = max77759_external_reg_read(client, reg, &regval);
-	if (ret < 0)
-		return -EINVAL;
-	*val = _chg_cnfg_14_bat_oilo_get(regval);
+	if (ifpmic == MAX77779) {
+		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (oilo == BATOILO1)
+			*val = _max77779_bat_oilo1_cnfg_0_bat_oilo1_get(regval);
+		else
+			*val = _max77779_bat_oilo2_cnfg_0_bat_oilo2_get(regval);
+	} else {
+		reg = MAX77759_CHG_CNFG_14;
+		ret = max77759_external_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		*val = _chg_cnfg_14_bat_oilo_get(regval);
+	}
 	return ret;
 }
 
-static int batoilo_reg_write(struct i2c_client *client, uint8_t val,
+static int batoilo_reg_write(struct device *dev, uint8_t val,
 			     enum IFPMIC ifpmic, int oilo)
 {
 	int ret;
 	uint8_t reg, regval;
 
-	if (!client)
+	if (!dev)
 		return -ENODEV;
 
-	reg = MAX77759_CHG_CNFG_14;
-	ret = max77759_external_reg_read(client, reg, &regval);
-	if (ret < 0)
-		return -EINVAL;
-	regval = _chg_cnfg_14_bat_oilo_set(regval, val);
-	ret = max77759_external_reg_write(client, reg, regval);
-	if (ret < 0)
-		return -EINVAL;
+	if (ifpmic == MAX77779) {
+		reg = (oilo == BATOILO1) ? MAX77779_BAT_OILO1_CNFG_0 : MAX77779_BAT_OILO2_CNFG_0;
+		ret = max77779_external_chg_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		if (oilo == BATOILO1)
+			regval = _max77779_bat_oilo1_cnfg_0_bat_oilo1_set(regval, val);
+		else
+			regval = _max77779_bat_oilo2_cnfg_0_bat_oilo2_set(regval, val);
+		ret = max77779_external_chg_reg_write(dev, reg, regval);
+		if (ret < 0)
+			return -EINVAL;
+	} else {
+		reg = MAX77759_CHG_CNFG_14;
+		ret = max77759_external_reg_read(dev, reg, &regval);
+		if (ret < 0)
+			return -EINVAL;
+		regval = _chg_cnfg_14_bat_oilo_set(regval, val);
+		ret = max77759_external_reg_write(dev, reg, regval);
+		if (ret < 0)
+			return -EINVAL;
+	}
 	return ret;
 }
 
@@ -933,10 +1065,10 @@ static ssize_t batoilo_lvl_show(struct device *dev, struct device_attribute *att
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO1])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO1, &lvl);
-	batoilo1_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO1, &lvl);
+	batoilo1_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf1.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO1]->bcl_lvl = batoilo1_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo1_lvl);
 }
@@ -957,13 +1089,15 @@ static ssize_t batoilo_lvl_store(struct device *dev,
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO1])
 		return -EIO;
-	if (value < bcl_dev->batoilo_lower_limit || value > bcl_dev->batoilo_upper_limit) {
+	if (value < bcl_dev->batt_irq_conf1.batoilo_lower_limit ||
+	    value > bcl_dev->batt_irq_conf1.batoilo_upper_limit) {
 		dev_err(bcl_dev->device, "BATOILO1 %d outside of range %d - %d mA.", value,
-			bcl_dev->batoilo_lower_limit, bcl_dev->batoilo_upper_limit);
+			bcl_dev->batt_irq_conf1.batoilo_lower_limit,
+			bcl_dev->batt_irq_conf1.batoilo_upper_limit);
 		return -EINVAL;
 	}
-	lvl = (value - bcl_dev->batoilo_lower_limit) / BO_STEP;
-	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO1);
+	lvl = (value - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
+	ret = batoilo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, BATOILO1);
 	if (ret)
 		return ret;
 	bcl_dev->zone[BATOILO1]->bcl_lvl = value - THERMAL_HYST_LEVEL;
@@ -986,10 +1120,10 @@ static ssize_t batoilo2_lvl_show(struct device *dev, struct device_attribute *at
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO2])
 		return -EIO;
-	if (!bcl_dev->intf_pmic_i2c)
+	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
-	batoilo_reg_read(bcl_dev->intf_pmic_i2c, bcl_dev->ifpmic, BATOILO2, &lvl);
-	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batoilo_lower_limit;
+	batoilo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, BATOILO2, &lvl);
+	batoilo2_lvl = BO_STEP * lvl + bcl_dev->batt_irq_conf2.batoilo_lower_limit;
 	bcl_dev->zone[BATOILO2]->bcl_lvl = batoilo2_lvl;
 	return sysfs_emit(buf, "%umA\n", batoilo2_lvl);
 }
@@ -1010,13 +1144,15 @@ static ssize_t batoilo2_lvl_store(struct device *dev,
 		return -EIO;
 	if (!bcl_dev->zone[BATOILO2])
 		return -EIO;
-	if (value < bcl_dev->batoilo_lower_limit || value > bcl_dev->batoilo_upper_limit) {
+	if (value < bcl_dev->batt_irq_conf2.batoilo_lower_limit ||
+	    value > bcl_dev->batt_irq_conf2.batoilo_upper_limit) {
 		dev_err(bcl_dev->device, "BATOILO2 %d outside of range %d - %d mA.", value,
-			bcl_dev->batoilo_lower_limit, bcl_dev->batoilo_upper_limit);
+			bcl_dev->batt_irq_conf2.batoilo_lower_limit,
+			bcl_dev->batt_irq_conf2.batoilo_upper_limit);
 		return -EINVAL;
 	}
-	lvl = (value - bcl_dev->batoilo_lower_limit) / BO_STEP;
-	ret = batoilo_reg_write(bcl_dev->intf_pmic_i2c, lvl, bcl_dev->ifpmic, BATOILO2);
+	lvl = (value - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
+	ret = batoilo_reg_write(bcl_dev->intf_pmic_dev, lvl, bcl_dev->ifpmic, BATOILO2);
 	if (ret)
 		return ret;
 	bcl_dev->zone[BATOILO2]->bcl_lvl = value - THERMAL_HYST_LEVEL;
@@ -1085,6 +1221,7 @@ static ssize_t smpl_lvl_store(struct device *dev,
 		return ret;
 	}
 	bcl_dev->zone[SMPL_WARN]->bcl_lvl = SMPL_BATTERY_VOLTAGE - val - THERMAL_HYST_LEVEL;
+
 	if (bcl_dev->zone[SMPL_WARN]->tz) {
 		bcl_dev->zone[SMPL_WARN]->tz->trips[0].temperature = SMPL_BATTERY_VOLTAGE - val;
 		thermal_zone_device_update(bcl_dev->zone[SMPL_WARN]->tz, THERMAL_EVENT_UNSPECIFIED);
@@ -1121,7 +1258,7 @@ static int set_ocp_lvl(struct bcl_device *bcl_dev, u64 val, u8 addr, u8 pmic, u8
 	u8 value;
 	int ret;
 
-	if (!bcl_dev)
+	if (!bcl_dev || !bcl_dev->zone[id])
 		return -EIO;
 	if (val < llimit || val > ulimit) {
 		dev_err(bcl_dev->device, "OCP_WARN LEVEL %llu outside of range %d - %d mA.", val,
@@ -1289,7 +1426,6 @@ static ssize_t soft_ocp_cpu1_lvl_show(struct device *dev, struct device_attribut
 	                CPU1_UPPER_LIMIT, CPU1_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_cpu1_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1322,7 +1458,6 @@ static ssize_t soft_ocp_cpu2_lvl_show(struct device *dev, struct device_attribut
 	                CPU2_UPPER_LIMIT, CPU2_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_cpu2_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1355,7 +1490,6 @@ static ssize_t soft_ocp_tpu_lvl_show(struct device *dev, struct device_attribute
 	                TPU_UPPER_LIMIT, TPU_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_tpu_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1388,7 +1522,6 @@ static ssize_t soft_ocp_gpu_lvl_show(struct device *dev, struct device_attribute
 	                GPU_UPPER_LIMIT, GPU_STEP) < 0)
 		return -EINVAL;
 	return sysfs_emit(buf, "%llumA\n", val);
-
 }
 
 static ssize_t soft_ocp_gpu_lvl_store(struct device *dev, struct device_attribute *attr,
@@ -1446,28 +1579,26 @@ static ssize_t clk_div_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clkdivstep);
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	}
 	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(idx))
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(idx);
-
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
 static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
+	void __iomem *addr;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1477,21 +1608,19 @@ static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clk_stats);
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return sysfs_emit(buf, "off\n");
 		break;
 	case SUBSYSTEM_CPU0:
 		break;
 	}
-	if (!bcl_disable_power(idx))
+	addr = bcl_dev->core_conf[idx].base_mem + clk_stats_offset[idx];
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(bcl_dev->core_conf[idx].base_mem + clk_stats_offset[idx]);
-	bcl_enable_power(idx);
-
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 static ssize_t cpu0_clk_div_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -1515,18 +1644,17 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 
 	if (!bcl_dev)
 		return -EIO;
-	bcl_dev->core_conf[idx].clkdivstep = value;
 	switch (idx) {
 	case SUBSYSTEM_TPU:
 	case SUBSYSTEM_GPU:
 	case SUBSYSTEM_AUR:
 		return size;
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(CPU1_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
 			return -EIO;
 		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(CPU2_CLUSTER_MIN))
+		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
 			return -EIO;
 		break;
 	case SUBSYSTEM_CPU0:
@@ -1535,15 +1663,11 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
 	if (addr == NULL)
 		return -EIO;
-	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(idx);
-	mutex_unlock(&bcl_dev->ratio_lock);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 
+	if (ret < 0)
+		return ret;
+	bcl_dev->core_conf[idx].clkdivstep = value;
 	return size;
 }
 
@@ -1698,10 +1822,8 @@ static ssize_t clk_ratio_show(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx,
 	}
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(sub_idx))
+	if (cpu_sfr_read(bcl_dev, sub_idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(sub_idx);
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
@@ -1742,15 +1864,10 @@ static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx
 	}
 	if (addr == NULL)
 		return -EIO;
-	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(sub_idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(sub_idx);
-	mutex_unlock(&bcl_dev->ratio_lock);
+	ret = cpu_sfr_write(bcl_dev, sub_idx, addr, value);
 
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -2011,6 +2128,386 @@ static ssize_t gpu_clk_stats_show(struct device *dev, struct device_attribute *a
 
 static DEVICE_ATTR_RO(gpu_clk_stats);
 
+static ssize_t last_triggered_cnt(struct bcl_zone *zone, char *buf, int mode)
+{
+	if (!zone)
+		return -ENODEV;
+	if (mode >= 0 && mode < MAX_MITIGATION_MODE)
+		return sysfs_emit(buf, "%d\n",
+				  atomic_read(&zone->last_triggered.triggered_cnt[mode]));
+	return sysfs_emit(buf, "0\n");
+}
+
+static ssize_t last_triggered_time(struct bcl_zone *zone, char *buf, int mode)
+{
+	if (!zone)
+		return -ENODEV;
+	if (mode >= 0 && mode < MAX_MITIGATION_MODE)
+		return sysfs_emit(buf, "%lld\n", zone->last_triggered.triggered_time[mode]);
+	return sysfs_emit(buf, "0\n");
+}
+
+static ssize_t last_triggered_uvlo1_heavy_cnt_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_heavy_cnt);
+
+static ssize_t last_triggered_uvlo1_medium_cnt_show(struct device *dev,
+							     struct device_attribute *attr,
+							     char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_medium_cnt);
+
+static ssize_t last_triggered_uvlo1_light_cnt_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_light_cnt);
+
+static ssize_t last_triggered_uvlo1_start_cnt_show(struct device *dev,
+						   struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO1], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_start_cnt);
+
+static ssize_t last_triggered_uvlo1_heavy_time_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_heavy_time);
+
+static ssize_t last_triggered_uvlo1_medium_time_show(struct device *dev,
+							      struct device_attribute *attr,
+							      char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_medium_time);
+
+static ssize_t last_triggered_uvlo1_light_time_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_light_time);
+
+static ssize_t last_triggered_uvlo1_start_time_show(struct device *dev,
+						    struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO1], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo1_start_time);
+
+static ssize_t last_triggered_uvlo2_heavy_cnt_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_heavy_cnt);
+
+static ssize_t last_triggered_uvlo2_medium_cnt_show(struct device *dev,
+							     struct device_attribute *attr,
+							     char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_medium_cnt);
+
+static ssize_t last_triggered_uvlo2_light_cnt_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_light_cnt);
+
+static ssize_t last_triggered_uvlo2_start_cnt_show(struct device *dev,
+						   struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[UVLO2], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_start_cnt);
+
+static ssize_t last_triggered_uvlo2_heavy_time_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_heavy_time);
+
+static ssize_t last_triggered_uvlo2_medium_time_show(struct device *dev,
+							      struct device_attribute *attr,
+							      char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_medium_time);
+
+static ssize_t last_triggered_uvlo2_light_time_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_light_time);
+
+static ssize_t last_triggered_uvlo2_start_time_show(struct device *dev,
+						    struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[UVLO2], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_uvlo2_start_time);
+
+static ssize_t last_triggered_batoilo2_heavy_cnt_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_heavy_cnt);
+
+static ssize_t last_triggered_batoilo2_medium_cnt_show(struct device *dev,
+								struct device_attribute *attr,
+								char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_medium_cnt);
+
+static ssize_t last_triggered_batoilo2_light_cnt_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_light_cnt);
+
+static ssize_t last_triggered_batoilo2_start_cnt_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO2], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_start_cnt);
+
+static ssize_t last_triggered_batoilo2_heavy_time_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_heavy_time);
+
+static ssize_t last_triggered_batoilo2_medium_time_show(struct device *dev,
+								 struct device_attribute *attr,
+								 char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_medium_time);
+
+static ssize_t last_triggered_batoilo2_light_time_show(struct device *dev,
+							   struct device_attribute *attr,
+							   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_light_time);
+
+static ssize_t last_triggered_batoilo2_start_time_show(struct device *dev,
+						       struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO2], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo2_start_time);
+
+static ssize_t last_triggered_batoilo_heavy_cnt_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_heavy_cnt);
+
+static ssize_t last_triggered_batoilo_medium_cnt_show(struct device *dev,
+							       struct device_attribute *attr,
+							       char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_medium_cnt);
+
+static ssize_t last_triggered_batoilo_light_cnt_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_light_cnt);
+
+static ssize_t last_triggered_batoilo_start_cnt_show(struct device *dev,
+						     struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_cnt(bcl_dev->zone[BATOILO], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_start_cnt);
+
+static ssize_t last_triggered_batoilo_heavy_time_show(struct device *dev,
+							 struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, HEAVY);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_heavy_time);
+
+static ssize_t last_triggered_batoilo_medium_time_show(struct device *dev,
+								struct device_attribute *attr,
+								char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, MEDIUM);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_medium_time);
+
+static ssize_t last_triggered_batoilo_light_time_show(struct device *dev,
+							  struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, LIGHT);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_light_time);
+
+static ssize_t last_triggered_batoilo_start_time_show(struct device *dev,
+						      struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return last_triggered_time(bcl_dev->zone[BATOILO], buf, START);
+}
+
+static DEVICE_ATTR_RO(last_triggered_batoilo_start_time);
+
 static struct attribute *clock_stats_attrs[] = {
 	&dev_attr_cpu0_clk_stats.attr,
 	&dev_attr_cpu1_clk_stats.attr,
@@ -2114,6 +2611,47 @@ static const struct attribute_group triggered_voltage_group = {
 	.name = "last_triggered_voltage",
 };
 
+static struct attribute *last_triggered_mode_attrs[] = {
+	&dev_attr_last_triggered_uvlo1_start_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_start_time.attr,
+	&dev_attr_last_triggered_uvlo1_light_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_light_time.attr,
+	&dev_attr_last_triggered_uvlo1_medium_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_medium_time.attr,
+	&dev_attr_last_triggered_uvlo1_heavy_cnt.attr,
+	&dev_attr_last_triggered_uvlo1_heavy_time.attr,
+	&dev_attr_last_triggered_uvlo2_start_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_start_time.attr,
+	&dev_attr_last_triggered_uvlo2_light_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_light_time.attr,
+	&dev_attr_last_triggered_uvlo2_medium_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_medium_time.attr,
+	&dev_attr_last_triggered_uvlo2_heavy_cnt.attr,
+	&dev_attr_last_triggered_uvlo2_heavy_time.attr,
+	&dev_attr_last_triggered_batoilo_start_cnt.attr,
+	&dev_attr_last_triggered_batoilo_start_time.attr,
+	&dev_attr_last_triggered_batoilo_light_cnt.attr,
+	&dev_attr_last_triggered_batoilo_light_time.attr,
+	&dev_attr_last_triggered_batoilo_medium_cnt.attr,
+	&dev_attr_last_triggered_batoilo_medium_time.attr,
+	&dev_attr_last_triggered_batoilo_heavy_cnt.attr,
+	&dev_attr_last_triggered_batoilo_heavy_time.attr,
+	&dev_attr_last_triggered_batoilo2_start_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_start_time.attr,
+	&dev_attr_last_triggered_batoilo2_light_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_light_time.attr,
+	&dev_attr_last_triggered_batoilo2_medium_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_medium_time.attr,
+	&dev_attr_last_triggered_batoilo2_heavy_cnt.attr,
+	&dev_attr_last_triggered_batoilo2_heavy_time.attr,
+	NULL,
+};
+
+static const struct attribute_group last_triggered_mode_group = {
+	.attrs = last_triggered_mode_attrs,
+	.name = "last_triggered_mode",
+};
+
 static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
@@ -2133,10 +2671,8 @@ static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
 
 	if (addr == NULL)
 		return -EIO;
-	if (!bcl_disable_power(idx))
+	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
 		return sysfs_emit(buf, "off\n");
-	reg = __raw_readl(addr);
-	bcl_enable_power(idx);
 
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
@@ -2146,6 +2682,7 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 {
 	void __iomem *addr = NULL;
 	unsigned int value;
+	int ret;
 
 	if (sscanf(buf, "0x%x", &value) != 1)
 		return -EINVAL;
@@ -2164,15 +2701,10 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 	}
 	if (addr == NULL)
 		return -EIO;
-	mutex_lock(&bcl_dev->ratio_lock);
-	if (!bcl_disable_power(idx)) {
-		mutex_unlock(&bcl_dev->ratio_lock);
-		return -EIO;
-	}
-	__raw_writel(value, addr);
-	bcl_enable_power(idx);
-	mutex_unlock(&bcl_dev->ratio_lock);
+	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
 
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -2265,7 +2797,1303 @@ static const struct attribute_group vdroop_flt_group = {
 	.name = "vdroop_flt",
 };
 
-const struct attribute_group *mitigation_groups[] = {
+static ssize_t main_pwrwarn_threshold_show(struct device *dev, struct device_attribute *attr,
+					   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	int ret, idx;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	ret = sscanf(attr->attr.name, "main_pwrwarn_threshold%d", &idx);
+	if (ret != 1)
+		return -EINVAL;
+	if (idx >= METER_CHANNEL_MAX || idx < 0)
+		return -EINVAL;
+
+	return sysfs_emit(buf, "%d=%lld\n", bcl_dev->main_setting[idx], bcl_dev->main_limit[idx]);
+}
+
+static ssize_t main_pwrwarn_threshold_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	int ret, idx, value;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	ret = kstrtou32(buf, 10, &value);
+	if (ret)
+		return ret;
+	ret = sscanf(attr->attr.name, "main_pwrwarn_threshold%d", &idx);
+	if (ret != 1)
+		return -EINVAL;
+	if (idx >= METER_CHANNEL_MAX || idx < 0)
+		return -EINVAL;
+
+	bcl_dev->main_setting[idx] = value;
+	bcl_dev->main_limit[idx] = settings_to_current(bcl_dev, CORE_PMIC_MAIN, idx,
+	                                               value << LPF_CURRENT_SHIFT);
+	meter_write(CORE_PMIC_MAIN, bcl_dev, MAIN_METER_PWR_WARN0 + idx, value);
+
+	return size;
+}
+
+static ssize_t sub_pwrwarn_threshold_show(struct device *dev, struct device_attribute *attr,
+					  char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	int ret, idx;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	ret = sscanf(attr->attr.name, "sub_pwrwarn_threshold%d", &idx);
+	if (ret != 1)
+		return -EINVAL;
+	if (idx >= METER_CHANNEL_MAX || idx < 0)
+		return -EINVAL;
+
+	return sysfs_emit(buf, "%d=%lld\n", bcl_dev->sub_setting[idx], bcl_dev->sub_limit[idx]);
+}
+
+static ssize_t sub_pwrwarn_threshold_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	int ret, idx, value;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	ret = kstrtou32(buf, 10, &value);
+	if (ret)
+		return ret;
+	ret = sscanf(attr->attr.name, "sub_pwrwarn_threshold%d", &idx);
+	if (ret != 1)
+		return -EINVAL;
+	if (idx >= METER_CHANNEL_MAX || idx < 0)
+		return -EINVAL;
+
+	bcl_dev->sub_setting[idx] = value;
+	bcl_dev->sub_limit[idx] = settings_to_current(bcl_dev, CORE_PMIC_SUB, idx,
+	                                              value << LPF_CURRENT_SHIFT);
+	meter_write(CORE_PMIC_SUB, bcl_dev, SUB_METER_PWR_WARN0 + idx, value);
+
+	return size;
+}
+
+#define DEVICE_PWRWARN_ATTR(_name, _num) \
+	struct device_attribute attr_##_name##_num = \
+		__ATTR(_name##_num, 0644, _name##_show, _name##_store)
+
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 0);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 1);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 2);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 3);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 4);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 5);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 6);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 7);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 8);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 9);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 10);
+static DEVICE_PWRWARN_ATTR(main_pwrwarn_threshold, 11);
+
+static struct attribute *main_pwrwarn_attrs[] = {
+	&attr_main_pwrwarn_threshold0.attr,
+	&attr_main_pwrwarn_threshold1.attr,
+	&attr_main_pwrwarn_threshold2.attr,
+	&attr_main_pwrwarn_threshold3.attr,
+	&attr_main_pwrwarn_threshold4.attr,
+	&attr_main_pwrwarn_threshold5.attr,
+	&attr_main_pwrwarn_threshold6.attr,
+	&attr_main_pwrwarn_threshold7.attr,
+	&attr_main_pwrwarn_threshold8.attr,
+	&attr_main_pwrwarn_threshold9.attr,
+	&attr_main_pwrwarn_threshold10.attr,
+	&attr_main_pwrwarn_threshold11.attr,
+	NULL,
+};
+
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 0);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 1);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 2);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 3);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 4);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 5);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 6);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 7);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 8);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 9);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 10);
+static DEVICE_PWRWARN_ATTR(sub_pwrwarn_threshold, 11);
+
+static struct attribute *sub_pwrwarn_attrs[] = {
+	&attr_sub_pwrwarn_threshold0.attr,
+	&attr_sub_pwrwarn_threshold1.attr,
+	&attr_sub_pwrwarn_threshold2.attr,
+	&attr_sub_pwrwarn_threshold3.attr,
+	&attr_sub_pwrwarn_threshold4.attr,
+	&attr_sub_pwrwarn_threshold5.attr,
+	&attr_sub_pwrwarn_threshold6.attr,
+	&attr_sub_pwrwarn_threshold7.attr,
+	&attr_sub_pwrwarn_threshold8.attr,
+	&attr_sub_pwrwarn_threshold9.attr,
+	&attr_sub_pwrwarn_threshold10.attr,
+	&attr_sub_pwrwarn_threshold11.attr,
+	NULL,
+};
+
+static ssize_t qos_show(struct bcl_device *bcl_dev, int idx, char *buf)
+{
+	struct bcl_zone *zone;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	if (!bcl_dev)
+		return -EIO;
+	zone = bcl_dev->zone[idx];
+	if ((!zone) || (!zone->bcl_qos))
+		return -EIO;
+
+	return sysfs_emit(buf, "CPU0,CPU1,CPU2,GPU,TPU\n%d,%d,%d,%d,%d\n",
+			  zone->bcl_qos->cpu0_limit,
+			  zone->bcl_qos->cpu1_limit,
+			  zone->bcl_qos->cpu2_limit,
+			  zone->bcl_qos->gpu_limit,
+			  zone->bcl_qos->tpu_limit);
+}
+
+static ssize_t qos_store(struct bcl_device *bcl_dev, int idx, const char *buf, size_t size)
+{
+	unsigned int cpu0, cpu1, cpu2, gpu, tpu;
+	struct bcl_zone *zone;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	if (sscanf(buf, "%d,%d,%d,%d,%d", &cpu0, &cpu1, &cpu2, &gpu, &tpu) != 5)
+		return -EINVAL;
+	if (!bcl_dev)
+		return -EIO;
+	zone = bcl_dev->zone[idx];
+	if ((!zone) || (!zone->bcl_qos))
+		return -EIO;
+	zone->bcl_qos->cpu0_limit = cpu0;
+	zone->bcl_qos->cpu1_limit = cpu1;
+	zone->bcl_qos->cpu2_limit = cpu2;
+	zone->bcl_qos->gpu_limit = gpu;
+	zone->bcl_qos->tpu_limit = tpu;
+
+	return size;
+}
+
+static ssize_t qos_batoilo2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, BATOILO2, buf);
+}
+
+static ssize_t qos_batoilo2_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, BATOILO2, buf, size);
+}
+
+static ssize_t qos_batoilo_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, BATOILO, buf);
+}
+
+static ssize_t qos_batoilo_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, BATOILO, buf, size);
+}
+
+static ssize_t qos_vdroop1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, UVLO1, buf);
+}
+
+static ssize_t qos_vdroop1_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, UVLO1, buf, size);
+}
+
+static ssize_t qos_vdroop2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, UVLO2, buf);
+}
+
+static ssize_t qos_vdroop2_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, UVLO2, buf, size);
+}
+
+static ssize_t qos_smpl_warn_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, SMPL_WARN, buf);
+}
+
+static ssize_t qos_smpl_warn_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, SMPL_WARN, buf, size);
+}
+
+static ssize_t qos_ocp_cpu2_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, OCP_WARN_CPUCL2, buf);
+}
+
+static ssize_t qos_ocp_cpu2_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, OCP_WARN_CPUCL2, buf, size);
+}
+
+static ssize_t qos_ocp_cpu1_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, OCP_WARN_CPUCL1, buf);
+}
+
+static ssize_t qos_ocp_cpu1_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, OCP_WARN_CPUCL1, buf, size);
+}
+
+static ssize_t qos_ocp_tpu_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, OCP_WARN_TPU, buf);
+}
+
+static ssize_t qos_ocp_tpu_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, OCP_WARN_TPU, buf, size);
+}
+
+static ssize_t qos_ocp_gpu_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_show(bcl_dev, OCP_WARN_GPU, buf);
+}
+
+static ssize_t qos_ocp_gpu_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return qos_store(bcl_dev, OCP_WARN_GPU, buf, size);
+}
+
+static DEVICE_ATTR_RW(qos_batoilo2);
+static DEVICE_ATTR_RW(qos_batoilo);
+static DEVICE_ATTR_RW(qos_vdroop1);
+static DEVICE_ATTR_RW(qos_vdroop2);
+static DEVICE_ATTR_RW(qos_smpl_warn);
+static DEVICE_ATTR_RW(qos_ocp_cpu2);
+static DEVICE_ATTR_RW(qos_ocp_cpu1);
+static DEVICE_ATTR_RW(qos_ocp_gpu);
+static DEVICE_ATTR_RW(qos_ocp_tpu);
+
+static struct attribute *qos_attrs[] = {
+	&dev_attr_qos_batoilo2.attr,
+	&dev_attr_qos_batoilo.attr,
+	&dev_attr_qos_vdroop1.attr,
+	&dev_attr_qos_vdroop2.attr,
+	&dev_attr_qos_smpl_warn.attr,
+	&dev_attr_qos_ocp_cpu2.attr,
+	&dev_attr_qos_ocp_cpu1.attr,
+	&dev_attr_qos_ocp_gpu.attr,
+	&dev_attr_qos_ocp_tpu.attr,
+	NULL,
+};
+
+static const struct attribute_group main_pwrwarn_group = {
+	.attrs = main_pwrwarn_attrs,
+	.name = "main_pwrwarn",
+};
+
+static const struct attribute_group sub_pwrwarn_group = {
+	.attrs = sub_pwrwarn_attrs,
+	.name = "sub_pwrwarn",
+};
+
+static ssize_t less_than_5ms_count_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	int irq_count, batt_idx, pwrwarn_idx;
+	ssize_t count = 0;
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
+		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
+			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
+						.lt_5ms_count);
+			count += scnprintf(buf + count, PAGE_SIZE - count,
+						"%s + %s: %i\n",
+						batt_irq_names[batt_idx],
+						concurrent_pwrwarn_irq_names[pwrwarn_idx],
+						irq_count);
+		}
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_main_irq_bins[pwrwarn_idx].lt_5ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"main CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->main_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_sub_irq_bins[pwrwarn_idx].lt_5ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"sub CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->sub_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	return count;
+}
+
+static DEVICE_ATTR_RO(less_than_5ms_count);
+
+static ssize_t between_5ms_to_10ms_count_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	int irq_count, batt_idx, pwrwarn_idx;
+	ssize_t count = 0;
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
+		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
+			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
+						.bt_5ms_10ms_count);
+			count += scnprintf(buf + count, PAGE_SIZE - count,
+						"%s + %s: %i\n",
+						batt_irq_names[batt_idx],
+						concurrent_pwrwarn_irq_names[pwrwarn_idx],
+						irq_count);
+		}
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_main_irq_bins[pwrwarn_idx]
+					.bt_5ms_10ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"main CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->main_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_sub_irq_bins[pwrwarn_idx]
+					.bt_5ms_10ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"sub CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->sub_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	return count;
+}
+
+static DEVICE_ATTR_RO(between_5ms_to_10ms_count);
+
+static ssize_t greater_than_10ms_count_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	int irq_count, batt_idx, pwrwarn_idx;
+	ssize_t count = 0;
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	for (batt_idx = 0; batt_idx < MAX_BCL_BATT_IRQ; batt_idx++) {
+		for (pwrwarn_idx = 0; pwrwarn_idx < MAX_CONCURRENT_PWRWARN_IRQ; pwrwarn_idx++) {
+			irq_count = atomic_read(&bcl_dev->ifpmic_irq_bins[batt_idx][pwrwarn_idx]
+						.gt_10ms_count);
+			count += scnprintf(buf + count, PAGE_SIZE - count,
+						"%s + %s: %i\n",
+						batt_irq_names[batt_idx],
+						concurrent_pwrwarn_irq_names[pwrwarn_idx],
+						irq_count);
+		}
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_main_irq_bins[pwrwarn_idx].gt_10ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"main CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->main_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	for (pwrwarn_idx = 0; pwrwarn_idx < METER_CHANNEL_MAX; pwrwarn_idx++) {
+		irq_count = atomic_read(&bcl_dev->pwrwarn_sub_irq_bins[pwrwarn_idx].gt_10ms_count);
+		count += scnprintf(buf + count, PAGE_SIZE - count,
+					"sub CH%d[%s]: %i\n",
+					pwrwarn_idx,
+					bcl_dev->sub_rail_names[pwrwarn_idx],
+					irq_count);
+	}
+	return count;
+}
+
+static DEVICE_ATTR_RO(greater_than_10ms_count);
+
+static struct attribute *irq_dur_cnt_attrs[] = {
+	&dev_attr_less_than_5ms_count.attr,
+	&dev_attr_between_5ms_to_10ms_count.attr,
+	&dev_attr_greater_than_10ms_count.attr,
+	NULL,
+};
+
+static ssize_t disabled_store(struct bcl_zone *zone, bool disabled, size_t size)
+{
+	if (disabled && !zone->disabled) {
+		zone->disabled = true;
+		disable_irq(zone->bcl_irq);
+	} else if (!disabled && zone->disabled) {
+		zone->disabled = false;
+		enable_irq(zone->bcl_irq);
+	}
+	return size;
+}
+
+static ssize_t uvlo1_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[UVLO1]->disabled);
+}
+
+static ssize_t uvlo1_disabled_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[UVLO1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[UVLO1], value, size);
+}
+
+static ssize_t uvlo2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[UVLO2]->disabled);
+}
+
+static ssize_t uvlo2_disabled_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[UVLO2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[UVLO2], value, size);
+}
+
+static ssize_t batoilo_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[BATOILO]->disabled);
+}
+
+static ssize_t batoilo_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[BATOILO], value, size);
+}
+
+static ssize_t batoilo2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[BATOILO2]->disabled);
+}
+
+static ssize_t batoilo2_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[BATOILO2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[BATOILO2], value, size);
+}
+
+static ssize_t smpl_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SMPL_WARN]->disabled);
+}
+
+static ssize_t smpl_disabled_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SMPL_WARN], value, size);
+}
+
+static ssize_t ocp_cpu1_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_CPUCL1]->disabled);
+}
+
+static ssize_t ocp_cpu1_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_CPUCL1], value, size);
+}
+
+static ssize_t ocp_cpu2_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_CPUCL2]->disabled);
+}
+
+static ssize_t ocp_cpu2_disabled_store(struct device *dev, struct device_attribute *attr,
+				       const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_CPUCL2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_CPUCL2], value, size);
+}
+
+static ssize_t ocp_tpu_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_TPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_TPU]->disabled);
+}
+
+static ssize_t ocp_tpu_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_TPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_TPU], value, size);
+}
+
+static ssize_t ocp_gpu_disabled_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[OCP_WARN_GPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[OCP_WARN_GPU]->disabled);
+}
+
+static ssize_t ocp_gpu_disabled_store(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[OCP_WARN_GPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[OCP_WARN_GPU], value, size);
+}
+
+static ssize_t soft_ocp_cpu1_disabled_show(struct device *dev, struct device_attribute *attr,
+					   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_CPUCL1]->disabled);
+}
+
+static ssize_t soft_ocp_cpu1_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL1])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_CPUCL1], value, size);
+}
+
+static ssize_t soft_ocp_cpu2_disabled_show(struct device *dev, struct device_attribute *attr,
+					   char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_CPUCL2]->disabled);
+}
+
+static ssize_t soft_ocp_cpu2_disabled_store(struct device *dev, struct device_attribute *attr,
+					    const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_CPUCL2])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_CPUCL2], value, size);
+}
+
+static ssize_t soft_ocp_tpu_disabled_show(struct device *dev, struct device_attribute *attr,
+					  char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_TPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_TPU]->disabled);
+}
+
+static ssize_t soft_ocp_tpu_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_TPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_TPU], value, size);
+}
+
+static ssize_t soft_ocp_gpu_disabled_show(struct device *dev, struct device_attribute *attr,
+					  char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_GPU])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d\n", bcl_dev->zone[SOFT_OCP_WARN_GPU]->disabled);
+}
+
+static ssize_t soft_ocp_gpu_disabled_store(struct device *dev, struct device_attribute *attr,
+					   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->zone[SOFT_OCP_WARN_GPU])
+		return -ENODEV;
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+	return disabled_store(bcl_dev->zone[SOFT_OCP_WARN_GPU], value, size);
+}
+
+static DEVICE_ATTR_RW(uvlo1_disabled);
+static DEVICE_ATTR_RW(uvlo2_disabled);
+static DEVICE_ATTR_RW(batoilo_disabled);
+static DEVICE_ATTR_RW(batoilo2_disabled);
+static DEVICE_ATTR_RW(smpl_disabled);
+static DEVICE_ATTR_RW(ocp_cpu1_disabled);
+static DEVICE_ATTR_RW(ocp_cpu2_disabled);
+static DEVICE_ATTR_RW(ocp_tpu_disabled);
+static DEVICE_ATTR_RW(ocp_gpu_disabled);
+static DEVICE_ATTR_RW(soft_ocp_cpu1_disabled);
+static DEVICE_ATTR_RW(soft_ocp_cpu2_disabled);
+static DEVICE_ATTR_RW(soft_ocp_tpu_disabled);
+static DEVICE_ATTR_RW(soft_ocp_gpu_disabled);
+
+static struct attribute *irq_config_attrs[] = {
+	&dev_attr_uvlo1_disabled.attr,
+	&dev_attr_uvlo2_disabled.attr,
+	&dev_attr_batoilo_disabled.attr,
+	&dev_attr_batoilo2_disabled.attr,
+	&dev_attr_smpl_disabled.attr,
+	&dev_attr_ocp_cpu1_disabled.attr,
+	&dev_attr_ocp_cpu2_disabled.attr,
+	&dev_attr_ocp_tpu_disabled.attr,
+	&dev_attr_ocp_gpu_disabled.attr,
+	&dev_attr_soft_ocp_cpu1_disabled.attr,
+	&dev_attr_soft_ocp_cpu2_disabled.attr,
+	&dev_attr_soft_ocp_tpu_disabled.attr,
+	&dev_attr_soft_ocp_gpu_disabled.attr,
+	NULL,
+};
+
+int get_final_mitigation_module_ids(struct bcl_device *bcl_dev) {
+	int mitigation_module_ids = atomic_read(&bcl_dev->mitigation_module_ids);
+	int w = hweight32(mitigation_module_ids);
+
+	if (w >= HEAVY_MITIGATION_MODULES_NUM || w == 0)
+		mitigation_module_ids |= bcl_dev->non_monitored_mitigation_module_ids;
+
+	return mitigation_module_ids;
+}
+
+static ssize_t uvlo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO1])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO1]->current_state,
+					  get_final_mitigation_module_ids(bcl_dev));
+}
+
+static ssize_t uvlo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[UVLO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[UVLO2]->current_state,
+					  get_final_mitigation_module_ids(bcl_dev));
+}
+
+static ssize_t oilo1_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO]->current_state,
+					  get_final_mitigation_module_ids(bcl_dev));
+}
+
+static ssize_t oilo2_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[BATOILO2])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[BATOILO2]->current_state,
+					  get_final_mitigation_module_ids(bcl_dev));
+}
+
+static ssize_t smpl_triggered_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (!bcl_dev->zone[SMPL_WARN])
+		return -ENODEV;
+	return sysfs_emit(buf, "%d_%d\n", bcl_dev->zone[SMPL_WARN]->current_state,
+					  get_final_mitigation_module_ids(bcl_dev));
+}
+
+static DEVICE_ATTR(oilo1_triggered, 0444, oilo1_triggered_show, NULL);
+static DEVICE_ATTR(oilo2_triggered, 0444, oilo2_triggered_show, NULL);
+static DEVICE_ATTR(uvlo1_triggered, 0444, uvlo1_triggered_show, NULL);
+static DEVICE_ATTR(uvlo2_triggered, 0444, uvlo2_triggered_show, NULL);
+static DEVICE_ATTR(smpl_triggered, 0444, smpl_triggered_show, NULL);
+
+void bunch_mitigation_threshold_addr(struct bcl_mitigation_conf *mitigation_conf,
+					unsigned int *addr[METER_CHANNEL_MAX]) {
+	int i;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return;
+#endif
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		addr[i] = &mitigation_conf[i].threshold;
+}
+
+void bunch_mitigation_module_id_addr(struct bcl_mitigation_conf *mitigation_conf,
+					unsigned int *addr[METER_CHANNEL_MAX]) {
+	int i;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return;
+#endif
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		addr[i] = &mitigation_conf[i].module_id;
+}
+
+static ssize_t mitigation_show(unsigned int *addr[METER_CHANNEL_MAX], char *buf)
+{
+	int i, at = 0;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++)
+		at += sysfs_emit_at(buf, at, "%d,", *addr[i]);
+
+	return at;
+}
+
+static ssize_t mitigation_store(unsigned int *addr[METER_CHANNEL_MAX],
+					const char *buf, size_t size) {
+	int i;
+	unsigned int ch[METER_CHANNEL_MAX] = {0};
+	char * const str = kstrndup(buf, size, GFP_KERNEL);
+	char *sep_str = str;
+	char *token = NULL;
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	goto mitigation_store_exit;
+#endif
+
+	if (!sep_str)
+		goto mitigation_store_exit;
+
+	for (i = 0; i < METER_CHANNEL_MAX; i++) {
+		token = strsep(&sep_str, MITIGATION_INPUT_DELIM);
+		if (!token || sscanf(token, "%d", &ch[i]) != 1)
+			break;
+		else
+			*addr[i] = ch[i];
+	}
+
+mitigation_store_exit:
+	kfree(str);
+
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG12) || IS_ENABLED(CONFIG_REGULATOR_S2MPG10)
+	return -ENODEV;
+#endif
+	return size;
+}
+
+static ssize_t main_mitigation_threshold_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t main_mitigation_threshold_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t sub_mitigation_threshold_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t sub_mitigation_threshold_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_threshold_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t main_mitigation_module_id_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t main_mitigation_module_id_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->main_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static ssize_t sub_mitigation_module_id_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_show(addr, buf);
+}
+
+static ssize_t sub_mitigation_module_id_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	unsigned int *addr[METER_CHANNEL_MAX];
+
+	bunch_mitigation_module_id_addr(bcl_dev->sub_mitigation_conf, addr);
+
+	return mitigation_store(addr, buf, size);
+}
+
+static DEVICE_ATTR_RW(main_mitigation_threshold);
+static DEVICE_ATTR_RW(sub_mitigation_threshold);
+static DEVICE_ATTR_RW(main_mitigation_module_id);
+static DEVICE_ATTR_RW(sub_mitigation_module_id);
+
+static struct attribute *mitigation_attrs[] = {
+	&dev_attr_main_mitigation_threshold.attr,
+	&dev_attr_sub_mitigation_threshold.attr,
+	&dev_attr_main_mitigation_module_id.attr,
+	&dev_attr_sub_mitigation_module_id.attr,
+	NULL,
+};
+
+
+static struct attribute *triggered_state_sq_attrs[] = {
+	&dev_attr_oilo1_triggered.attr,
+	&dev_attr_uvlo1_triggered.attr,
+	&dev_attr_uvlo2_triggered.attr,
+	&dev_attr_smpl_triggered.attr,
+	&dev_attr_oilo2_triggered.attr,
+	NULL,
+};
+
+static struct attribute *triggered_state_mw_attrs[] = {
+	&dev_attr_oilo1_triggered.attr,
+	&dev_attr_uvlo1_triggered.attr,
+	&dev_attr_uvlo2_triggered.attr,
+	&dev_attr_smpl_triggered.attr,
+	NULL,
+};
+
+static ssize_t triggered_idx_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d\n", bcl_dev->triggered_idx);
+}
+
+static DEVICE_ATTR(triggered_idx, 0444, triggered_idx_show, NULL);
+
+static ssize_t enable_br_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	return sysfs_emit(buf, "%d\n", bcl_dev->enabled_br_stats);
+}
+
+static ssize_t enable_br_stats_store(struct device *dev, struct device_attribute *attr,
+				                          const char *buf, size_t size)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	bool value;
+	int ret;
+
+	if (!bcl_dev->data_logging_initialized)
+		return -EINVAL;
+
+	ret = kstrtobool(buf, &value);
+	if (ret)
+		return ret;
+
+	bcl_dev->enabled_br_stats = value;
+
+	return size;
+}
+
+static DEVICE_ATTR_RW(enable_br_stats);
+
+static struct attribute *br_stats_attrs[] = {
+	&dev_attr_triggered_idx.attr,
+	&dev_attr_enable_br_stats.attr,
+	NULL,
+};
+
+static ssize_t br_stats_dump_read(struct file *filp,
+				  struct kobject *kobj, struct bin_attribute *attr,
+				  char *buf, loff_t off, size_t count)
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (off > bcl_dev->br_stats_size)
+		return 0;
+	if (off + count > bcl_dev->br_stats_size)
+		count = bcl_dev->br_stats_size - off;
+
+	memcpy(buf, (const void *)bcl_dev->br_stats + off, count);
+
+	return count;
+}
+
+static struct bin_attribute br_stats_dump_attr = {
+	.attr = { .name = "stats", .mode = 0444 },
+	.read = br_stats_dump_read,
+	.size = sizeof(struct brownout_stats),
+};
+
+static struct bin_attribute *br_stats_bin_attrs[] = {
+	&br_stats_dump_attr,
+	NULL,
+};
+
+static const struct attribute_group irq_dur_cnt_group = {
+	.attrs = irq_dur_cnt_attrs,
+	.name = "irq_dur_cnt",
+};
+
+static const struct attribute_group qos_group = {
+	.attrs = qos_attrs,
+	.name = "qos",
+};
+
+static const struct attribute_group br_stats_group = {
+	.attrs = br_stats_attrs,
+	.bin_attrs = br_stats_bin_attrs,
+	.name = "br_stats",
+};
+
+static const struct attribute_group irq_config_group = {
+	.attrs = irq_config_attrs,
+	.name = "irq_config",
+};
+
+const struct attribute_group triggered_state_sq_group = {
+	.attrs = triggered_state_sq_attrs,
+	.name = "triggered_state",
+};
+
+const struct attribute_group triggered_state_mw_group = {
+	.attrs = triggered_state_mw_attrs,
+	.name = "triggered_state",
+};
+
+const struct attribute_group mitigation_group = {
+	.attrs = mitigation_attrs,
+	.name = "mitigation",
+};
+
+const struct attribute_group *mitigation_mw_groups[] = {
 	&instr_group,
 	&triggered_lvl_group,
 	&clock_div_group,
@@ -2276,5 +4104,36 @@ const struct attribute_group *mitigation_groups[] = {
 	&triggered_capacity_group,
 	&triggered_voltage_group,
 	&vdroop_flt_group,
+	&main_pwrwarn_group,
+	&sub_pwrwarn_group,
+	&irq_dur_cnt_group,
+	&qos_group,
+	&br_stats_group,
+	&last_triggered_mode_group,
+	&irq_config_group,
+	&triggered_state_mw_group,
+	NULL,
+};
+
+const struct attribute_group *mitigation_sq_groups[] = {
+	&instr_group,
+	&triggered_lvl_group,
+	&clock_div_group,
+	&clock_ratio_group,
+	&clock_stats_group,
+	&triggered_count_group,
+	&triggered_timestamp_group,
+	&triggered_capacity_group,
+	&triggered_voltage_group,
+	&vdroop_flt_group,
+	&main_pwrwarn_group,
+	&sub_pwrwarn_group,
+	&irq_dur_cnt_group,
+	&qos_group,
+	&br_stats_group,
+	&last_triggered_mode_group,
+	&irq_config_group,
+	&triggered_state_sq_group,
+	&mitigation_group,
 	NULL,
 };

@@ -37,17 +37,16 @@ static int get_xclk(void *data, u64 *val, int idx)
 {
 	struct bcl_device *bcl_dev = data;
 	void __iomem *addr;
+	unsigned int reg;
 
 	*val = 0;
 	switch (idx) {
 	case SUBSYSTEM_CPU0:
 	case SUBSYSTEM_CPU1:
 	case SUBSYSTEM_CPU2:
-		if (bcl_disable_power(idx)) {
-			addr = bcl_dev->core_conf[idx].base_mem + CLKOUT;
-			*val = __raw_readl(addr);
-			bcl_enable_power(idx);
-		}
+		addr = bcl_dev->core_conf[idx].base_mem + CLKOUT;
+		if (cpu_sfr_read(bcl_dev, idx, addr, &reg) == 0)
+			*val = (u64) reg;
 		break;
 	case SUBSYSTEM_GPU:
 	case SUBSYSTEM_TPU:
@@ -67,11 +66,8 @@ static int set_xclk(void *data, u64 val, int idx)
 	case SUBSYSTEM_CPU0:
 	case SUBSYSTEM_CPU1:
 	case SUBSYSTEM_CPU2:
-		if (bcl_disable_power(idx)) {
-			addr = bcl_dev->core_conf[idx].base_mem + CLKOUT;
-			__raw_writel(val, addr);
-			bcl_enable_power(idx);
-		}
+		addr = bcl_dev->core_conf[idx].base_mem + CLKOUT;
+		cpu_sfr_write(bcl_dev, idx, addr, val);
 		break;
 	case SUBSYSTEM_GPU:
 	case SUBSYSTEM_TPU:
@@ -217,7 +213,7 @@ static int get_add_data(void *data, u64 *val)
 
 	mutex_lock(&bcl_dev->sysreg_lock);
 	if ((bcl_dev->add_perph < SUBSYSTEM_TPU) && (bcl_dev->add_perph != SUBSYSTEM_CPU0)) {
-		if (!bcl_disable_power(bcl_dev->add_perph)) {
+		if (!bcl_disable_power(bcl_dev, bcl_dev->add_perph)) {
 			mutex_unlock(&bcl_dev->sysreg_lock);
 			return 0;
 		}
@@ -225,7 +221,7 @@ static int get_add_data(void *data, u64 *val)
 	read_addr = bcl_dev->base_add_mem[bcl_dev->add_perph] + bcl_dev->add_addr;
 	*val = __raw_readl(read_addr);
 	if ((bcl_dev->add_perph < SUBSYSTEM_TPU) && (bcl_dev->add_perph != SUBSYSTEM_CPU0))
-		bcl_enable_power(bcl_dev->add_perph);
+		bcl_enable_power(bcl_dev, bcl_dev->add_perph);
 	mutex_unlock(&bcl_dev->sysreg_lock);
 
 	return 0;
@@ -252,7 +248,7 @@ static int set_add_data(void *data, u64 val)
 
 	mutex_lock(&bcl_dev->sysreg_lock);
 	if ((bcl_dev->add_perph < SUBSYSTEM_TPU) && (bcl_dev->add_perph != SUBSYSTEM_CPU0)) {
-		if (!bcl_disable_power(bcl_dev->add_perph)) {
+		if (!bcl_disable_power(bcl_dev, bcl_dev->add_perph)) {
 			mutex_unlock(&bcl_dev->sysreg_lock);
 			return 0;
 		}
@@ -260,7 +256,7 @@ static int set_add_data(void *data, u64 val)
 	write_addr = bcl_dev->base_add_mem[bcl_dev->add_perph] + bcl_dev->add_addr;
 	__raw_writel(val, write_addr);
 	if ((bcl_dev->add_perph < SUBSYSTEM_TPU) && (bcl_dev->add_perph != SUBSYSTEM_CPU0))
-		bcl_enable_power(bcl_dev->add_perph);
+		bcl_enable_power(bcl_dev, bcl_dev->add_perph);
 	mutex_unlock(&bcl_dev->sysreg_lock);
 	return 0;
 }

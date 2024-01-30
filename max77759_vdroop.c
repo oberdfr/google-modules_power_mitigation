@@ -19,7 +19,7 @@ int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 
 	clr_bcl_irq_mask = (MAX77759_CHG_INT2_BAT_OILO_I | MAX77759_CHG_INT2_SYS_UVLO1_I |
 			    MAX77759_CHG_INT2_SYS_UVLO2_I);
-	ret = max77759_external_reg_read(bcl_dev->intf_pmic_i2c, MAX77759_CHG_INT2,
+	ret = max77759_external_reg_read(bcl_dev->intf_pmic_dev, MAX77759_CHG_INT2,
 		                         &chg_int);
 	if (ret < 0)
 		return IRQ_NONE;
@@ -37,15 +37,18 @@ int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val)
 	return ret;
 }
 
-int max77759_clr_irq(struct bcl_device *bcl_dev)
+int max77759_clr_irq(struct bcl_device *bcl_dev, int idx)
 {
 	u8 irq_val = 0;
 	u8 chg_int = 0;
 	int ret;
 
-	if (max77759_get_irq(bcl_dev, &irq_val) != 0)
-		return IRQ_NONE;
-
+	if (idx == NOT_USED)
+		irq_val = idx;
+	else {
+		if (max77759_get_irq(bcl_dev, &irq_val) != 0)
+			return IRQ_NONE;
+	}
 	if (irq_val == UVLO2)
 		chg_int = MAX77759_CHG_INT2_SYS_UVLO2_I;
 	else if (irq_val == UVLO1)
@@ -53,7 +56,7 @@ int max77759_clr_irq(struct bcl_device *bcl_dev)
 	else if (irq_val == BATOILO)
 		chg_int = MAX77759_CHG_INT2_BAT_OILO_I;
 
-	ret = max77759_external_reg_write(bcl_dev->intf_pmic_i2c, MAX77759_CHG_INT2,
+	ret = max77759_external_reg_write(bcl_dev->intf_pmic_dev, MAX77759_CHG_INT2,
 		                          chg_int);
 	if (ret < 0)
 		return IRQ_NONE;

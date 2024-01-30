@@ -7,13 +7,19 @@ obj-$(CONFIG_GOOGLE_BCL) += google_bcl.o
 google_bcl-y			+= google_bcl_core.o
 google_bcl-y			+= google_bcl_sysfs.o
 google_bcl-y			+= google_bcl_util.o
+google_bcl-y			+= google_bcl_qos.o
 google_bcl-y			+= google_bcl_debugfs.o
+google_bcl-y			+= google_bcl_irq_mon.o
 google_bcl-y			+= max77759_vdroop.o
+google_bcl-y			+= max77779_vdroop.o
+google_bcl-y			+= google_bcl_votable.o
+google_bcl-y			+= google_bcl_data_logging.o
 
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 M ?= $(shell pwd)
 
 EXTRA_SYMBOLS += $(OUT_DIR)/../private/google-modules/bms/Module.symvers
+EXTRA_SYMBOLS += $(OUT_DIR)/../private/google-modules/bms/misc/Module.symvers
 
 KBUILD_OPTIONS += CONFIG_GOOGLE_BCL=m
 include $(KERNEL_SRC)/../private/google-modules/soc/gs/Makefile.include
