@@ -1082,7 +1082,7 @@ static int google_set_sub_pmic(struct bcl_device *bcl_dev)
 	pmic_read(CORE_PMIC_SUB, bcl_dev, SUB_OFFSRC1, &val);
 	dev_info(bcl_dev->device, "SUB OFFSRC1 : %#x\n", val);
 	bcl_dev->sub_offsrc1 = val;
-	pmic_write(CORE_PMIC_SUB, bcl_dev, SUB_OFFSRC2, 0);
+	pmic_write(CORE_PMIC_SUB, bcl_dev, SUB_OFFSRC1, 0);
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14) || IS_ENABLED(CONFIG_REGULATOR_S2MPG12)
 	pmic_read(CORE_PMIC_SUB, bcl_dev, SUB_OFFSRC2, &val);
 	dev_info(bcl_dev->device, "SUB OFFSRC2 : %#x\n", val);
