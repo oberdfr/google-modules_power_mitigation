@@ -783,6 +783,18 @@ static ssize_t pwronsrc_show(struct device *dev, struct device_attribute *attr, 
 
 static DEVICE_ATTR_RO(pwronsrc);
 
+static ssize_t last_current_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (bcl_dev->ifpmic != MAX77779)
+		return -ENODEV;
+
+	return sysfs_emit(buf, "%#x\n", bcl_dev->last_current);
+}
+static DEVICE_ATTR_RO(last_current);
+
 static ssize_t ready_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -805,6 +817,7 @@ static struct attribute *instr_attrs[] = {
 	&dev_attr_evt_cnt_batoilo1.attr,
 	&dev_attr_evt_cnt_batoilo2.attr,
 	&dev_attr_pwronsrc.attr,
+	&dev_attr_last_current.attr,
 	&dev_attr_ready.attr,
 	NULL,
 };

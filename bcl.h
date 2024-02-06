@@ -53,6 +53,7 @@
 #define MITIGATION_INPUT_DELIM		","
 #define MITIGATION_PRINT_BUF_SIZE  	256
 #define MITIGATION_TMP_BUF_SIZE	16
+#define MAXMIN_RESET_VAL		0x807F
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
 #define MAIN_OFFSRC1 S2MPG10_PM_OFFSRC
@@ -283,6 +284,7 @@ struct bcl_device {
 	struct i2c_client *sub_meter_i2c;
 	struct device *intf_pmic_dev;
 	struct device *irq_pmic_dev;
+	struct device *fg_pmic_dev;
 
 	struct mutex cpu_ratio_lock;
 	struct mutex tpu_ratio_lock;
@@ -299,6 +301,7 @@ struct bcl_device {
 	unsigned int sub_offsrc2;
 	unsigned int pwronsrc;
 	unsigned int irq_delay;
+	unsigned int last_current;
 
 	unsigned int vdroop1_pin;
 	unsigned int vdroop2_pin;

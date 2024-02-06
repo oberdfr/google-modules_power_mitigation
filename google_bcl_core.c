@@ -51,6 +51,7 @@
 
 #include <max77759_regs.h>
 #include <max77779.h>
+#include <max77779_fg.h>
 #include <max777x9_bcl.h>
 
 static const struct platform_device_id google_id_table[] = {
@@ -1375,6 +1376,7 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 {
 	int i, ret = 0;
 	u32 retval;
+	u16 readout;
 	struct device_node *np = bcl_dev->device->of_node;
 
 	ret = of_property_read_u32(np, "google,ifpmic", &retval);
@@ -1453,6 +1455,24 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 			dev_err(bcl_dev->device, "Cannot find PMIC bus\n");
 			return -ENODEV;
 		}
+
+		bcl_dev->fg_pmic_dev = max77779_get_dev(bcl_dev->device, "google,power-supply");
+		if (!bcl_dev->fg_pmic_dev) {
+			dev_err(bcl_dev->device, "Cannot find google,power-supply\n");
+			return -ENODEV;
+		}
+
+		/* Readout last current */
+		ret = max77779_external_fg_reg_read(bcl_dev->fg_pmic_dev,
+						    MAX77779_FG_MaxMinCurr,
+						    &readout);
+		if (ret < 0)
+			dev_err(bcl_dev->device, "bcl read of last current failed: %d\n", ret);
+
+		readout &= MAX77779_FG_MaxMinCurr_MAXCURR_MASK;
+		readout = readout >> MAX77779_FG_MaxMinCurr_MAXCURR_SHIFT;
+		bcl_dev->last_current = readout;
+		dev_dbg(bcl_dev->device, "LAST CURRENT: %#x\n", bcl_dev->last_current);
 	}
 
 	INIT_DELAYED_WORK(&bcl_dev->soc_work, google_bcl_evaluate_soc);
