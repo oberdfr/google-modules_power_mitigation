@@ -57,26 +57,30 @@ static const char * const concurrent_pwrwarn_irq_names[] = {
 
 static ssize_t safe_emit_bcl_cnt(char* buf, struct bcl_zone * zone) {
 	if (!zone)
-		return -ENODEV;
-	return sysfs_emit(buf, "%d\n", atomic_read(&zone->bcl_cnt));
+		return sysfs_emit(buf, "0\n");
+	else
+		return sysfs_emit(buf, "%d\n", atomic_read(&zone->bcl_cnt));
 }
 
 static ssize_t safe_emit_bcl_capacity(char* buf, struct bcl_zone * zone) {
 	if (!zone)
-		return -ENODEV;
-	return sysfs_emit(buf, "%d\n", zone->bcl_stats.capacity);
+		return sysfs_emit(buf, "0\n");
+	else
+		return sysfs_emit(buf, "%d\n", zone->bcl_stats.capacity);
 }
 
 static ssize_t safe_emit_bcl_voltage(char* buf, struct bcl_zone * zone) {
 	if (!zone)
-		return -ENODEV;
-	return sysfs_emit(buf, "%d\n", zone->bcl_stats.voltage);
+		return sysfs_emit(buf, "0\n");
+	else
+		return sysfs_emit(buf, "%d\n", zone->bcl_stats.voltage);
 }
 
 static ssize_t safe_emit_bcl_time(char* buf, struct bcl_zone * zone) {
 	if (!zone)
-		return -ENODEV;
-	return sysfs_emit(buf, "%lld\n", zone->bcl_stats._time);
+		return sysfs_emit(buf, "0\n");
+	else
+		return sysfs_emit(buf, "%lld\n", zone->bcl_stats._time);
 }
 
 static ssize_t batoilo_count_show(struct device *dev, struct device_attribute *attr, char *buf)
