@@ -171,18 +171,11 @@ bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster)
 {
 	if (IS_ENABLED(CONFIG_REGULATOR_S2MPG14) || IS_ENABLED(CONFIG_REGULATOR_S2MPG12)) {
 		int i;
-		if (cluster == SUBSYSTEM_CPU1) {
-			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
-				return false;
-			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
+		if (cluster == SUBSYSTEM_CPU1)
+			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++)
 				disable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-			}
-		}
-		else if (cluster == SUBSYSTEM_CPU2) {
-			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
-				return false;
+		else if (cluster == SUBSYSTEM_CPU2)
 			disable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
-		}
 	}
 	return true;
 }
@@ -191,18 +184,11 @@ bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 {
 	if (IS_ENABLED(CONFIG_REGULATOR_S2MPG14) || IS_ENABLED(CONFIG_REGULATOR_S2MPG12)) {
 		int i;
-		if (cluster == SUBSYSTEM_CPU1) {
-			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
-				return false;
-			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++) {
+		if (cluster == SUBSYSTEM_CPU1)
+			for (i = bcl_dev->cpu1_cluster; i < bcl_dev->cpu2_cluster; i++)
 				enable_power_mode(i, POWERMODE_TYPE_CLUSTER);
-			}
-		}
-		else if (cluster == SUBSYSTEM_CPU2) {
-			if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
-				return false;
+		else if (cluster == SUBSYSTEM_CPU2)
 			enable_power_mode(bcl_dev->cpu2_cluster, POWERMODE_TYPE_CLUSTER);
-		}
 	}
 	return true;
 }
