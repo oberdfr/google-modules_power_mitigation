@@ -159,6 +159,12 @@ Description:
 		The reported value indicates the last maximum current raw ADC value logged
 		by the fuel gauge.
 
+What:		/sys/devices/virtual/pmic/mitigation/instruction/vimon_buff
+Date:		Feb, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+Description:
+		The reported value returns the data buffer collected by the vimon hardware.
+
 What:		/sys/devices/virtual/pmic/mitigation/instruction/big_db_settings
 Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>
