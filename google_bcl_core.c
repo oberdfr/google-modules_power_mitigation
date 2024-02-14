@@ -1481,6 +1481,12 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		readout = readout >> MAX77779_FG_MaxMinCurr_MAXCURR_SHIFT;
 		bcl_dev->last_current = readout;
 		dev_dbg(bcl_dev->device, "LAST CURRENT: %#x\n", bcl_dev->last_current);
+
+		bcl_dev->vimon_dev = max77779_get_dev(bcl_dev->device, "google,vimon");
+		if (!bcl_dev->vimon_dev) {
+			dev_err(bcl_dev->device, "Cannot find max77779 vimon\n");
+			return -ENODEV;
+		}
 	}
 
 	INIT_DELAYED_WORK(&bcl_dev->soc_work, google_bcl_evaluate_soc);
