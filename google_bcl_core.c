@@ -458,9 +458,6 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 				   unsigned int value)
 {
-	void __iomem *addr;
-	int ret;
-
 	if (!bcl_dev)
 		return -EIO;
 	switch (idx) {
@@ -471,12 +468,9 @@ static int google_bcl_init_clk_div(struct bcl_device *bcl_dev, int idx,
 	case SUBSYSTEM_CPU0:
 	case SUBSYSTEM_CPU1:
 	case SUBSYSTEM_CPU2:
-		addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
-		break;
+		return cpu_buff_write(bcl_dev, idx, CPU_BUFF_CLKDIVSTEP, value);
 	}
-	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
-
-	return ret;
+	return -EINVAL;
 }
 
 struct bcl_device *google_retrieve_bcl_handle(void)
@@ -2232,6 +2226,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (google_set_main_pmic(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
 	if (google_set_sub_pmic(bcl_dev) < 0)
+		goto bcl_soc_probe_exit;
+	ret = google_bcl_init_notifier(bcl_dev);
+	if (ret < 0)
 		goto bcl_soc_probe_exit;
 	google_bcl_parse_dtree(bcl_dev);
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)

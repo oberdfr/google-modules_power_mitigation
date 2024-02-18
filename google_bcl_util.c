@@ -6,6 +6,8 @@
  *
  */
 
+#include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
@@ -64,6 +66,86 @@ int meter_write(int pmic, struct bcl_device *bcl_dev, u8 reg, u8 value)
 	case CORE_PMIC_MAIN:
 		return PMIC_MAIN_WRITE_REG((bcl_dev)->main_meter_i2c, reg, value);
 	}
+	return 0;
+}
+
+static int bcl_dev_cpu_notifier(struct notifier_block *nfb, unsigned long action, void *hcpu)
+{
+	int cpu = raw_smp_processor_id();
+	struct bcl_device *bcl_dev;
+	unsigned int i, bit_mask;
+	int cpu_ind;
+
+	if (action != CPU_PM_EXIT)
+		return NOTIFY_OK;
+
+	bcl_dev = container_of(nfb, struct bcl_device, cpu_nb);
+	if (!bcl_dev)
+		return -ENODEV;
+
+	if (!bcl_dev->enabled)
+		return -ENODEV;
+
+	if (cpu < bcl_dev->cpu1_cluster)
+		return NOTIFY_OK;
+
+	if (cpu >= bcl_dev->cpu1_cluster && cpu < bcl_dev->cpu2_cluster)
+		cpu_ind = MID_CLUSTER;
+	else
+		cpu_ind = BIG_CLUSTER;
+
+	if (bcl_dev->cpu_buff_conf[cpu_ind].wr_update_rqd == 0 &&
+	    bcl_dev->cpu_buff_conf[cpu_ind].rd_update_rqd == 0)
+		return NOTIFY_OK;
+
+	for (i = 0; i < CPU_BUFF_VALS_MAX; i++) {
+		bit_mask = BIT(i);
+		if (bcl_dev->cpu_buff_conf[cpu_ind].wr_update_rqd & bit_mask) {
+			__raw_writel(bcl_dev->cpu_buff_conf[cpu_ind].buff[i],
+				     bcl_dev->core_conf[SUBSYSTEM_CPU0 + cpu_ind].base_mem +
+				     bcl_dev->cpu_buff_conf[cpu_ind].addr[i]);
+			bcl_dev->cpu_buff_conf[cpu_ind].wr_update_rqd &= ~bit_mask;
+		}
+		if (bcl_dev->cpu_buff_conf[cpu_ind].rd_update_rqd & bit_mask) {
+			bcl_dev->cpu_buff_conf[cpu_ind].buff[i] =
+				__raw_readl(bcl_dev->core_conf[SUBSYSTEM_CPU0 + cpu_ind].base_mem +
+					    bcl_dev->cpu_buff_conf[cpu_ind].addr[i]);
+			bcl_dev->cpu_buff_conf[cpu_ind].rd_update_rqd &= ~bit_mask;
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+int cpu_buff_read(struct bcl_device *bcl_dev, int cluster, unsigned int type, unsigned int *reg)
+{
+	if (cluster < SUBSYSTEM_CPU0 || cluster > SUBSYSTEM_CPU2)
+		return -EINVAL;
+
+	if (cluster == SUBSYSTEM_CPU0) {
+		*reg = __raw_readl(bcl_dev->core_conf[SUBSYSTEM_CPU0].base_mem +
+				   bcl_dev->cpu_buff_conf[LITTLE_CLUSTER].addr[type]);
+		return 0;
+	}
+
+	*reg = bcl_dev->cpu_buff_conf[cluster].buff[type];
+	bcl_dev->cpu_buff_conf[cluster].rd_update_rqd |= BIT(type);
+	return 0;
+}
+
+int cpu_buff_write(struct bcl_device *bcl_dev, int cluster, unsigned int type, unsigned int val)
+{
+	if (cluster < SUBSYSTEM_CPU0 || cluster > SUBSYSTEM_CPU2)
+		return -EINVAL;
+
+	if (cluster == SUBSYSTEM_CPU0) {
+		__raw_writel(val, bcl_dev->core_conf[SUBSYSTEM_CPU0].base_mem +
+			     bcl_dev->cpu_buff_conf[LITTLE_CLUSTER].addr[type]);
+		return 0;
+	}
+
+	bcl_dev->cpu_buff_conf[cluster].buff[type] = val;
+	bcl_dev->cpu_buff_conf[cluster].wr_update_rqd |= BIT(type);
 	return 0;
 }
 
@@ -192,3 +274,27 @@ bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster)
 	}
 	return true;
 }
+
+int google_bcl_init_notifier(struct bcl_device *bcl_dev)
+{
+	int ret, i;
+
+	for (i = LITTLE_CLUSTER; i < CPU_CLUSTER_MAX; i++) {
+		bcl_dev->cpu_buff_conf[i].addr[CPU_BUFF_CON_HEAVY] =
+			(i == LITTLE_CLUSTER) ? CPUCL0_CLKDIVSTEP_CON : CLKDIVSTEP_CON_HEAVY;
+		bcl_dev->cpu_buff_conf[i].addr[CPU_BUFF_CON_LIGHT] =
+			(i == LITTLE_CLUSTER) ? CPUCL0_CLKDIVSTEP_CON : CLKDIVSTEP_CON_LIGHT;
+		bcl_dev->cpu_buff_conf[i].addr[CPU_BUFF_CLKDIVSTEP] = CLKDIVSTEP;
+		bcl_dev->cpu_buff_conf[i].addr[CPU_BUFF_VDROOP_FLT] = VDROOP_FLT;
+		bcl_dev->cpu_buff_conf[i].addr[CPU_BUFF_CLK_STATS] =
+			(i == LITTLE_CLUSTER) ? CPUCL0_CLKDIVSTEP_STAT : CLKDIVSTEP_STAT;
+		bcl_dev->cpu_buff_conf[i].rd_update_rqd = BIT(CPU_BUFF_VALS_MAX) - 1;
+	}
+	cpus_read_lock();
+	bcl_dev->cpu_nb.notifier_call = bcl_dev_cpu_notifier;
+	ret = cpu_pm_register_notifier(&bcl_dev->cpu_nb);
+	cpus_read_unlock();
+
+	return ret;
+}
+

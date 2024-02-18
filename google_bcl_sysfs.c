@@ -643,7 +643,6 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
 	bool value;
 	int ret, i;
-	void __iomem *addr;
 	unsigned int reg;
 
 	ret = kstrtobool(buf, &value);
@@ -659,12 +658,13 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		bcl_dev->core_conf[SUBSYSTEM_TPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_GPU].clkdivstep |= 0x1;
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep |= 0x1;
-		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
-			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+
+		for (i = SUBSYSTEM_CPU0; i <= SUBSYSTEM_CPU2; i++) {
+			ret = cpu_buff_read(bcl_dev, i, CPU_BUFF_CLKDIVSTEP, &reg);
 			if (ret < 0)
 				return ret;
-			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+
+			ret = cpu_buff_write(bcl_dev, i, CPU_BUFF_CLKDIVSTEP, reg | 0x1);
 			if (ret < 0)
 				return ret;
 		}
@@ -675,12 +675,13 @@ static ssize_t enable_mitigation_store(struct device *dev, struct device_attribu
 		bcl_dev->core_conf[SUBSYSTEM_TPU].clkdivstep &= ~(1 << 0);
 		bcl_dev->core_conf[SUBSYSTEM_GPU].clkdivstep &= ~(1 << 0);
 		bcl_dev->core_conf[SUBSYSTEM_AUR].clkdivstep &= ~(1 << 0);
-		for (i = 0; i < CPU_CLUSTER_MAX; i++) {
-			addr = bcl_dev->core_conf[i].base_mem + CLKDIVSTEP;
-			ret = cpu_sfr_read(bcl_dev, i, addr, &reg);
+
+		for (i = SUBSYSTEM_CPU0; i <= SUBSYSTEM_CPU2; i++) {
+			ret = cpu_buff_read(bcl_dev, i, CPU_BUFF_CLKDIVSTEP, &reg);
 			if (ret < 0)
 				return ret;
-			ret = cpu_sfr_write(bcl_dev, i, addr, reg | 0x1);
+
+			ret = cpu_buff_write(bcl_dev, i, CPU_BUFF_CLKDIVSTEP, reg & ~(1 << 0));
 			if (ret < 0)
 				return ret;
 		}
@@ -1586,7 +1587,7 @@ static const struct attribute_group triggered_lvl_group = {
 static ssize_t clk_div_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
-	void __iomem *addr;
+	int ret;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1596,26 +1597,19 @@ static ssize_t clk_div_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clkdivstep);
 	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
-			return sysfs_emit(buf, "off\n");
-		break;
 	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
-			return sysfs_emit(buf, "off\n");
+		ret = cpu_buff_read(bcl_dev, idx, CPU_BUFF_CLKDIVSTEP, &reg);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
-	if (addr == NULL)
-		return -EIO;
-	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
-		return sysfs_emit(buf, "off\n");
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
 static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
-	void __iomem *addr;
+	int ret;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1624,20 +1618,14 @@ static ssize_t clk_stats_show(struct bcl_device *bcl_dev, int idx, char *buf)
 	case SUBSYSTEM_GPU:
 	case SUBSYSTEM_AUR:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].clk_stats);
-	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
-			return sysfs_emit(buf, "off\n");
-		break;
-	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
-			return sysfs_emit(buf, "off\n");
-		break;
 	case SUBSYSTEM_CPU0:
+	case SUBSYSTEM_CPU1:
+	case SUBSYSTEM_CPU2:
+		ret = cpu_buff_read(bcl_dev, idx, CPU_BUFF_CLK_STATS, &reg);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-	addr = bcl_dev->core_conf[idx].base_mem + clk_stats_offset[idx];
-	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
-		return sysfs_emit(buf, "off\n");
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 static ssize_t cpu0_clk_div_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -1651,7 +1639,6 @@ static ssize_t cpu0_clk_div_show(struct device *dev, struct device_attribute *at
 static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 			     const char *buf, size_t size)
 {
-	void __iomem *addr;
 	unsigned int value;
 	int ret;
 
@@ -1666,25 +1653,14 @@ static ssize_t clk_div_store(struct bcl_device *bcl_dev, int idx,
 	case SUBSYSTEM_GPU:
 	case SUBSYSTEM_AUR:
 		return size;
-	case SUBSYSTEM_CPU1:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu1_cluster))
-			return -EIO;
-		break;
-	case SUBSYSTEM_CPU2:
-		if (!bcl_is_cluster_on(bcl_dev, bcl_dev->cpu2_cluster))
-			return -EIO;
-		break;
 	case SUBSYSTEM_CPU0:
+	case SUBSYSTEM_CPU1:
+	case SUBSYSTEM_CPU2:
+		ret = cpu_buff_write(bcl_dev, idx, CPU_BUFF_CLKDIVSTEP, value);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-	addr = bcl_dev->core_conf[idx].base_mem + CLKDIVSTEP;
-	if (addr == NULL)
-		return -EIO;
-	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
-
-	if (ret < 0)
-		return ret;
-	bcl_dev->core_conf[idx].clkdivstep = value;
 	return size;
 }
 
@@ -1813,7 +1789,7 @@ static ssize_t clk_ratio_show(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx,
 			      int sub_idx)
 {
 	unsigned int reg = 0;
-	void __iomem *addr;
+	int ret;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -1825,29 +1801,26 @@ static ssize_t clk_ratio_show(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx,
 	case TPU_LIGHT:
 	case GPU_LIGHT:
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[sub_idx].con_light);
+	case CPU0_CON:
 	case CPU1_LIGHT:
 	case CPU2_LIGHT:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CLKDIVSTEP_CON_LIGHT;
+		ret = cpu_buff_read(bcl_dev, sub_idx, CPU_BUFF_CON_LIGHT, &reg);
+		if (ret < 0)
+			return ret;
 		break;
 	case CPU1_HEAVY:
 	case CPU2_HEAVY:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CLKDIVSTEP_CON_HEAVY;
-		break;
-	case CPU0_CON:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CPUCL0_CLKDIVSTEP_CON;
+		ret = cpu_buff_read(bcl_dev, sub_idx, CPU_BUFF_CON_HEAVY, &reg);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-	if (addr == NULL)
-		return -EIO;
-	if (cpu_sfr_read(bcl_dev, sub_idx, addr, &reg) < 0)
-		return sysfs_emit(buf, "off\n");
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
 static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx,
 			       const char *buf, size_t size, int sub_idx)
 {
-	void __iomem *addr;
 	unsigned int value;
 	int ret;
 
@@ -1867,24 +1840,20 @@ static ssize_t clk_ratio_store(struct bcl_device *bcl_dev, enum RATIO_SOURCE idx
 	case GPU_LIGHT:
 		bcl_dev->core_conf[sub_idx].con_light = value;
 		return size;
+	case CPU0_CON:
 	case CPU1_LIGHT:
 	case CPU2_LIGHT:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CLKDIVSTEP_CON_LIGHT;
+		ret = cpu_buff_write(bcl_dev, sub_idx, CPU_BUFF_CON_LIGHT, value);
+		if (ret < 0)
+			return ret;
 		break;
 	case CPU1_HEAVY:
 	case CPU2_HEAVY:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CLKDIVSTEP_CON_HEAVY;
-		break;
-	case CPU0_CON:
-		addr = bcl_dev->core_conf[sub_idx].base_mem + CPUCL0_CLKDIVSTEP_CON;
+		ret = cpu_buff_write(bcl_dev, sub_idx, CPU_BUFF_CON_HEAVY, value);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-	if (addr == NULL)
-		return -EIO;
-	ret = cpu_sfr_write(bcl_dev, sub_idx, addr, value);
-
-	if (ret < 0)
-		return ret;
 	return size;
 }
 
@@ -2672,7 +2641,7 @@ static const struct attribute_group last_triggered_mode_group = {
 static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
 {
 	unsigned int reg = 0;
-	void __iomem *addr;
+	int ret;
 
 	if (!bcl_dev)
 		return -EIO;
@@ -2682,22 +2651,17 @@ static ssize_t vdroop_flt_show(struct bcl_device *bcl_dev, int idx, char *buf)
 		return sysfs_emit(buf, "0x%x\n", bcl_dev->core_conf[idx].vdroop_flt);
 	case SUBSYSTEM_CPU1:
 	case SUBSYSTEM_CPU2:
-		addr = bcl_dev->core_conf[idx].base_mem + VDROOP_FLT;
+		ret = cpu_buff_read(bcl_dev, idx, CPU_BUFF_VDROOP_FLT, &reg);
+		if (ret < 0)
+			return ret;
 		break;
 	}
-
-	if (addr == NULL)
-		return -EIO;
-	if (cpu_sfr_read(bcl_dev, idx, addr, &reg) < 0)
-		return sysfs_emit(buf, "off\n");
-
 	return sysfs_emit(buf, "0x%x\n", reg);
 }
 
 static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 				const char *buf, size_t size)
 {
-	void __iomem *addr = NULL;
 	unsigned int value;
 	int ret;
 
@@ -2713,15 +2677,10 @@ static ssize_t vdroop_flt_store(struct bcl_device *bcl_dev, int idx,
 		return size;
 	case SUBSYSTEM_CPU1:
 	case SUBSYSTEM_CPU2:
-		addr = bcl_dev->core_conf[idx].base_mem + VDROOP_FLT;
-		break;
+		ret = cpu_buff_write(bcl_dev, idx, CPU_BUFF_VDROOP_FLT, value);
+		if (ret < 0)
+			return ret;
 	}
-	if (addr == NULL)
-		return -EIO;
-	ret = cpu_sfr_write(bcl_dev, idx, addr, value);
-
-	if (ret < 0)
-		return ret;
 	return size;
 }
 

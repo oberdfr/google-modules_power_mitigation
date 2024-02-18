@@ -230,6 +230,27 @@ struct bcl_core_conf {
 	void __iomem *base_mem;
 };
 
+enum CPU_BUFF_IDX {
+	CPU_BUFF_IDX_MID,
+	CPU_BUFF_IDX_BIG
+};
+
+enum CPU_BUFF_VALS {
+	CPU_BUFF_CON_HEAVY,
+	CPU_BUFF_CON_LIGHT,
+	CPU_BUFF_CLKDIVSTEP,
+	CPU_BUFF_VDROOP_FLT,
+	CPU_BUFF_CLK_STATS,
+	CPU_BUFF_VALS_MAX
+};
+
+struct bcl_cpu_buff_conf {
+	unsigned int buff[CPU_BUFF_VALS_MAX];
+	unsigned int addr[CPU_BUFF_VALS_MAX];
+	uint8_t wr_update_rqd;
+	uint8_t rd_update_rqd;
+};
+
 struct bcl_batt_irq_conf {
 	int batoilo_lower_limit;
 	int batoilo_upper_limit;
@@ -291,6 +312,8 @@ struct bcl_device {
 	struct mutex gpu_ratio_lock;
 	struct mutex aur_ratio_lock;
 	struct bcl_core_conf core_conf[SUBSYSTEM_SOURCE_MAX];
+	struct bcl_cpu_buff_conf cpu_buff_conf[CPU_CLUSTER_MAX];
+	struct notifier_block cpu_nb;
 
 	bool batt_psy_initialized;
 	bool enabled;
@@ -390,6 +413,8 @@ extern int google_init_aur_ratio(struct bcl_device *data);
 bool bcl_is_subsystem_on(struct bcl_device *bcl_dev, unsigned int addr);
 int cpu_sfr_read(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int *reg);
 int cpu_sfr_write(struct bcl_device *bcl_dev, int idx, void __iomem *addr, unsigned int value);
+int cpu_buff_write(struct bcl_device *bcl_dev, int cluster, unsigned int type, unsigned int val);
+int cpu_buff_read(struct bcl_device *bcl_dev, int cluster, unsigned int type, unsigned int *reg);
 bool bcl_disable_power(struct bcl_device *bcl_dev, int cluster);
 bool bcl_enable_power(struct bcl_device *bcl_dev, int cluster);
 bool bcl_is_cluster_on(struct bcl_device *bcl_dev, int cluster);
@@ -412,6 +437,7 @@ int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
 int google_bcl_setup_votable(struct bcl_device *bcl_dev);
 void google_bcl_remove_votable(struct bcl_device *bcl_dev);
 int google_bcl_init_data_logging(struct bcl_device *bcl_dev);
+int google_bcl_init_notifier(struct bcl_device *bcl_dev);
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx);
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev);
 void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state);
