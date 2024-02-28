@@ -1276,8 +1276,10 @@ static int set_ocp_lvl(struct bcl_device *bcl_dev, u64 val, u8 addr, u8 pmic, u8
 	u8 value;
 	int ret;
 
-	if (!bcl_dev || !bcl_dev->zone[id])
+	if (!bcl_dev)
 		return -EIO;
+	if (!bcl_dev->zone[id])
+		return 0;
 	if (val < llimit || val > ulimit) {
 		dev_err(bcl_dev->device, "OCP_WARN LEVEL %llu outside of range %d - %d mA.", val,
 		       llimit, ulimit);
