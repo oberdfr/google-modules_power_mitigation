@@ -218,6 +218,30 @@ Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
 Description:
 		Number of cycles uvlo2 is asserted before a brownout event.
 
+What:		/sys/devices/virtual/pmic/mitigation/instruction/evt_cnt_latest_batoilo1
+Date:		Feb, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+Description:
+		Number of cycles batoilo1 is asserted in latest batoilo1 event.
+
+What:		/sys/devices/virtual/pmic/mitigation/instruction/evt_cnt_latest_batoilo2
+Date:		Feb, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+Description:
+		Number of cycles batoilo1 is asserted in latest batoilo2 event.
+
+What:		/sys/devices/virtual/pmic/mitigation/instruction/evt_cnt_latest_uvlo1
+Date:		Feb, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+Description:
+		Number of cycles uvlo1 is asserted in latest uvlo1 event.
+
+What:		/sys/devices/virtual/pmic/mitigation/instruction/evt_cnt_latest_uvlo2
+Date:		Feb, 2024
+Contact:	"Hiroshi Akiyama" <hiroshiakiyama@google.com>
+Description:
+		Number of cycles uvlo2 is asserted in latest uvlo2 event.
+
 What:		/sys/devices/virtual/pmic/mitigation/qos/<SUBSYSTEM>
 Date:		May, 2023
 Contact:	"George Lee" <geolee@google.com>

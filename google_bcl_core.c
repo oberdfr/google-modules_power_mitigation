@@ -136,10 +136,10 @@ static void update_tz(struct bcl_zone *zone, int idx, bool triggered)
 		thermal_zone_device_update(zone->tz, THERMAL_EVENT_UNSPECIFIED);
 }
 
-static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, u8 *val)
+static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, bool update_evt_cnt)
 {
 	int ret;
-	u8 reg;
+	u8 reg, val;
 
 	switch (idx) {
 	case UVLO1:
@@ -157,10 +157,33 @@ static int evt_cnt_rd_and_clr(struct bcl_device *bcl_dev, int idx, u8 *val)
 	}
 
 	/* Read to clear register */
-	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev, reg, val);
+	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev, reg, &val);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "evt_cnt_rd_and_clr: %d, fail\n", reg);
 		return -ENODEV;
+	}
+
+	switch (idx) {
+	case UVLO1:
+		bcl_dev->evt_cnt_latest.uvlo1 = val;
+		if (update_evt_cnt)
+			bcl_dev->evt_cnt.uvlo1 = val;
+		break;
+	case UVLO2:
+		bcl_dev->evt_cnt_latest.uvlo2 = val;
+		if (update_evt_cnt)
+			bcl_dev->evt_cnt.uvlo2 = val;
+		break;
+	case BATOILO1:
+		bcl_dev->evt_cnt_latest.batoilo1 = val;
+		if (update_evt_cnt)
+			bcl_dev->evt_cnt.batoilo1 = val;
+		break;
+	case BATOILO2:
+		bcl_dev->evt_cnt_latest.batoilo2 = val;
+		if (update_evt_cnt)
+			bcl_dev->evt_cnt.batoilo2 = val;
+		break;
 	}
 	return 0;
 }
@@ -281,7 +304,6 @@ static bool google_warn_check(struct bcl_zone *zone)
 static void google_bcl_release_throttling(struct bcl_zone *zone)
 {
 	struct bcl_device *bcl_dev;
-	u8 reg;
 
 	bcl_dev = zone->parent;
 	zone->bcl_cur_lvl = 0;
@@ -295,7 +317,7 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	if (zone->irq_type == IF_PMIC) {
 		update_irq_end_times(bcl_dev, zone->idx);
 		if (zone->idx >= UVLO1 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
-			evt_cnt_rd_and_clr(bcl_dev, zone->idx, &reg);
+			evt_cnt_rd_and_clr(bcl_dev, zone->idx, false);
 	}
 	if (zone->idx == BATOILO && bcl_dev->config_modem)
 		gpio_set_value(bcl_dev->modem_gpio2_pin, 0);
@@ -1171,7 +1193,7 @@ static void google_bcl_parse_qos(struct bcl_device *bcl_dev)
 static int intf_pmic_init(struct bcl_device *bcl_dev)
 {
 	int ret;
-	u8 val, retval, regval;
+	u8 val, retval;
 	unsigned int uvlo1_lvl, uvlo2_lvl, batoilo_lvl, batoilo2_lvl, lvl;
 
 	bcl_dev->batt_psy = google_get_power_supply(bcl_dev);
@@ -1337,21 +1359,10 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		                                      MAX77779_SYS_UVLO2_CNFG_1, val);
 
 		/* Read, save, and clear event counters */
-		ret = evt_cnt_rd_and_clr(bcl_dev, UVLO1, &regval);
-		if (ret == 0)
-			bcl_dev->evt_cnt.uvlo1 = regval;
-
-		ret = evt_cnt_rd_and_clr(bcl_dev, UVLO2, &regval);
-		if (ret == 0)
-			bcl_dev->evt_cnt.uvlo2 = regval;
-
-		ret = evt_cnt_rd_and_clr(bcl_dev, BATOILO1, &regval);
-		if (ret == 0)
-			bcl_dev->evt_cnt.batoilo1 = regval;
-
-		ret = evt_cnt_rd_and_clr(bcl_dev, BATOILO2, &regval);
-		if (ret == 0)
-			bcl_dev->evt_cnt.batoilo2 = regval;
+		evt_cnt_rd_and_clr(bcl_dev, UVLO1, true);
+		evt_cnt_rd_and_clr(bcl_dev, UVLO2, true);
+		evt_cnt_rd_and_clr(bcl_dev, BATOILO1, true);
+		evt_cnt_rd_and_clr(bcl_dev, BATOILO2, true);
 
 		/* Enable event counter if it is not enabled */
 		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
