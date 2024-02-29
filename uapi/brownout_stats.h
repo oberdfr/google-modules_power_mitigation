@@ -4,7 +4,6 @@
 #define __BROWNOUT_STATS_H
 
 #define METER_CHANNEL_MAX	12
-#define DATA_LOGGING_LEN	20
 
 /* Brownout triggered source need to be sync with the dt-bindings.
  * google-modules/soc/gs/include/dt-bindings/soc/google/zumapro-bcl.h
@@ -65,9 +64,9 @@ struct brownout_stats {
 	struct timespec64 triggered_time;
 	u32 triggered_idx;
 
-	struct odpm_lpf main_odpm_lpf[DATA_LOGGING_LEN];
-	struct odpm_lpf sub_odpm_lpf[DATA_LOGGING_LEN];
-	u32 triggered_state[DATA_LOGGING_LEN];
+	struct odpm_lpf main_odpm_lpf;
+	struct odpm_lpf sub_odpm_lpf;
+	u32 triggered_state;
 };
 static_assert(sizeof(struct brownout_stats) <= PAGE_SIZE);
 
