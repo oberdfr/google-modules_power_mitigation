@@ -391,8 +391,6 @@ struct bcl_device {
 	struct kthread_worker sub_meter_worker;
 	struct kthread_work main_meter_work;
 	struct kthread_work sub_meter_work;
-	bool main_thread_running;
-	bool sub_thread_running;
 	/* module id */
 	struct bcl_mitigation_conf main_mitigation_conf[METER_CHANNEL_MAX];
 	struct bcl_mitigation_conf sub_mitigation_conf[METER_CHANNEL_MAX];
