@@ -376,6 +376,7 @@ struct bcl_device {
 	struct gvotable_election *toggle_wlc;
 
 	struct bcl_evt_count evt_cnt;
+	struct bcl_evt_count evt_cnt_latest;
 
 	bool enabled_br_stats;
 	bool data_logging_initialized;
