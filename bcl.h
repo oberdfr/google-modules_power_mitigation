@@ -38,8 +38,8 @@
 
 /* This driver determines if HW was throttled due to SMPL/OCP */
 
+#define DELTA_5MS			(5 * NSEC_PER_MSEC)
 #define DELTA_10MS			(10 * NSEC_PER_MSEC)
-#define DELTA_50MS			(50 * NSEC_PER_MSEC)
 #define VSHUNT_MULTIPLIER		10000
 #define MILLI_TO_MICRO			1000
 #define IRQ_ENABLE_DELAY_MS		50
@@ -54,6 +54,11 @@
 #define MITIGATION_PRINT_BUF_SIZE  	256
 #define MITIGATION_TMP_BUF_SIZE	16
 #define MAXMIN_RESET_VAL		0x807F
+#define PWRWARN_LPF_RFFE_DATA_MAIN_0	0xCF
+#define PWRWARN_LPF_RFFE_DATA_MAIN_1	0xD0
+#define PWRWARN_THRESH_MAIN		0x3C
+#define PWRWARN_LPF_RFFE_MSB_MASK	0x0F
+#define PWRWARN_LPF_RFFE_RSHIFT		4
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
 #define MAIN_OFFSRC1 S2MPG10_PM_OFFSRC
@@ -400,6 +405,7 @@ struct bcl_device {
 	atomic_t mitigation_module_ids;
 
 	bool config_modem;
+	bool rffe_mitigation_enable;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
