@@ -3,6 +3,9 @@
 subdir-ccflags-y += \
 		-I$(KERNEL_SRC)/../private/google-modules/bms
 
+ccflags-$(CONFIG_RADIO_S5300) += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5300
+ccflags-$(CONFIG_RADIO_S5400) += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5400
+
 obj-$(CONFIG_GOOGLE_BCL) += google_bcl.o
 google_bcl-y			+= google_bcl_core.o
 google_bcl-y			+= google_bcl_sysfs.o
@@ -20,6 +23,10 @@ M ?= $(shell pwd)
 
 EXTRA_SYMBOLS += $(OUT_DIR)/../private/google-modules/bms/Module.symvers
 EXTRA_SYMBOLS += $(OUT_DIR)/../private/google-modules/bms/misc/Module.symvers
+
+ifneq ($(wildcard $(OUT_DIR)/../private/google-modules/radio/samsung/*/Module.symvers),)
+EXTRA_SYMBOLS += $(OUT_DIR)/../private/google-modules/radio/samsung/*/Module.symvers
+endif
 
 KBUILD_OPTIONS += CONFIG_GOOGLE_BCL=m
 include $(KERNEL_SRC)/../private/google-modules/soc/gs/Makefile.include
