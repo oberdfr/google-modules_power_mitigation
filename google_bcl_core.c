@@ -821,12 +821,12 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 		zone->disabled = true;
 		disable_irq(zone->bcl_irq);
 	}
-	zone->triggered_wq = alloc_workqueue(devname, WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
+	zone->triggered_wq = alloc_workqueue(devname, WQ_HIGHPRI | WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!zone->triggered_wq) {
 		dev_err(zone->device, "%s: ERR! fail to create triggered_wq\n", devname);
 		return -ENOMEM;
 	}
-	zone->warn_wq = alloc_workqueue(devname, WQ_HIGHPRI, 1);
+	zone->warn_wq = alloc_workqueue(devname, WQ_HIGHPRI | WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!zone->warn_wq) {
 		dev_err(zone->device, "%s: ERR! fail to create warn_wq\n", devname);
 		destroy_workqueue(zone->triggered_wq);
