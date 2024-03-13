@@ -249,7 +249,6 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
 		zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
 	}
-
 	if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
 		bcl_cb_get_irq(bcl_dev, &irq_val);
 		if (irq_val == 0)
@@ -257,6 +256,8 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 		idx = irq_val;
 		zone = bcl_dev->zone[idx];
 	}
+	if (zone->irq_type == IF_PMIC)
+		bcl_cb_clr_irq(bcl_dev, idx);
 	queue_work(zone->triggered_wq, &zone->irq_triggered_work);
 exit:
 	return IRQ_HANDLED;
@@ -272,8 +273,6 @@ static bool google_warn_check(struct bcl_zone *zone)
 	bcl_dev = zone->parent;
 	if (zone->bcl_pin != NOT_USED) {
 		gpio_level = gpio_get_value(zone->bcl_pin);
-		if (zone->irq_type == IF_PMIC)
-			bcl_cb_clr_irq(bcl_dev, zone->idx);
 		return (gpio_level == zone->polarity);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
@@ -1373,6 +1372,10 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 						 retval, bcl_dev->evt_cnt.rate);
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 						  MAX77779_PMIC_EVENT_CNT_CFG, retval);
+		bcl_cb_clr_irq(bcl_dev, UVLO1);
+		bcl_cb_clr_irq(bcl_dev, UVLO2);
+		bcl_cb_clr_irq(bcl_dev, BATOILO1);
+		bcl_cb_clr_irq(bcl_dev, BATOILO2);
 	}
 	return ret;
 }
