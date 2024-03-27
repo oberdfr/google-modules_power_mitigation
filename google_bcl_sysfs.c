@@ -870,6 +870,30 @@ static ssize_t last_current_show(struct device *dev, struct device_attribute *at
 }
 static DEVICE_ATTR_RO(last_current);
 
+static ssize_t vimon_buff_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+	int idx, ret;
+	uint16_t rdback;
+	ssize_t count = 0;
+
+	if (bcl_dev->ifpmic != MAX77779)
+		return -ENODEV;
+
+	ret = bcl_vimon_read(bcl_dev);
+	if (ret < 0)
+		return -ENODEV;
+
+	for (idx = 0; idx < ret / VIMON_BYTES_PER_ENTRY; idx++) {
+		rdback = bcl_dev->vimon_intf.data[idx];
+		count += sysfs_emit_at(buf, count, "%#x\n", rdback);
+	}
+
+	return count;
+}
+static DEVICE_ATTR_RO(vimon_buff);
+
 static ssize_t ready_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -898,6 +922,7 @@ static struct attribute *instr_attrs[] = {
 	&dev_attr_evt_cnt_latest_batoilo2.attr,
 	&dev_attr_pwronsrc.attr,
 	&dev_attr_last_current.attr,
+	&dev_attr_vimon_buff.attr,
 	&dev_attr_ready.attr,
 	NULL,
 };

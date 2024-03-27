@@ -35,8 +35,8 @@
         max77759_get_irq(bcl, v) : max77779_get_irq(bcl, v))
 #define bcl_cb_clr_irq(bcl, v) (((bcl)->ifpmic == MAX77759) ? \
         max77759_clr_irq(bcl, v) : max77779_clr_irq(bcl, v))
-
-/* This driver determines if HW was throttled due to SMPL/OCP */
+#define bcl_vimon_read(bcl) (((bcl)->ifpmic == MAX77759) ? \
+	max77759_vimon_read(bcl) : max77779_vimon_read(bcl))
 
 #define DELTA_5MS			(5 * NSEC_PER_MSEC)
 #define DELTA_10MS			(10 * NSEC_PER_MSEC)
@@ -59,6 +59,8 @@
 #define PWRWARN_THRESH_MAIN		0x3C
 #define PWRWARN_LPF_RFFE_MSB_MASK	0x0F
 #define PWRWARN_LPF_RFFE_RSHIFT		4
+#define VIMON_BUF_SIZE			32
+#define VIMON_BYTES_PER_ENTRY		2
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
 #define MAIN_OFFSRC1 S2MPG10_PM_OFFSRC
@@ -282,6 +284,11 @@ struct bcl_mitigation_conf {
 	u32 threshold;
 };
 
+struct bcl_vimon_intf {
+	uint16_t data[VIMON_BUF_SIZE];
+	size_t count;
+};
+
 struct bcl_device {
 	struct device *device;
 	struct device *main_dev;
@@ -311,6 +318,7 @@ struct bcl_device {
 	struct device *intf_pmic_dev;
 	struct device *irq_pmic_dev;
 	struct device *fg_pmic_dev;
+	struct device *vimon_dev;
 
 	struct mutex cpu_ratio_lock;
 	struct mutex tpu_ratio_lock;
@@ -406,6 +414,8 @@ struct bcl_device {
 
 	bool config_modem;
 	bool rffe_mitigation_enable;
+
+	struct bcl_vimon_intf vimon_intf;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);
@@ -436,9 +446,11 @@ int uvlo_reg_read(struct device *dev, enum IFPMIC ifpmic, int triggered, unsigne
 int batoilo_reg_read(struct device *dev, enum IFPMIC ifpmic, int oilo, unsigned int *val);
 int max77759_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77759_clr_irq(struct bcl_device *bcl_dev, int idx);
+int max77759_vimon_read(struct bcl_device *bcl_dev);
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77779_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
+int max77779_vimon_read(struct bcl_device *bcl_dev);
 int google_bcl_setup_votable(struct bcl_device *bcl_dev);
 void google_bcl_remove_votable(struct bcl_device *bcl_dev);
 int google_bcl_init_data_logging(struct bcl_device *bcl_dev);
