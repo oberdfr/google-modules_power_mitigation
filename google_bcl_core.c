@@ -128,6 +128,11 @@ static void ocpsmpl_read_stats(struct bcl_device *bcl_dev,
 
 static void update_tz(struct bcl_zone *zone, int idx, bool triggered)
 {
+	struct bcl_device *bcl_dev;
+
+	bcl_dev = zone->parent;
+	if (bcl_dev->ifpmic == MAX77779)
+		return;
 	if (triggered)
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
 	else
