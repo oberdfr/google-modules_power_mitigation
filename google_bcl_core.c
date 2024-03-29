@@ -1087,6 +1087,14 @@ static int google_set_sub_pmic(struct bcl_device *bcl_dev)
 	pdata_sub = dev_get_platdata(sub_dev->dev);
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	bcl_dev->sub_odpm = pdata_sub->meter;
+	if (!bcl_dev->sub_odpm) {
+		dev_err(bcl_dev->device, "SUB PMIC meter device not found\n");
+		return -ENODEV;
+	}
+	if (!bcl_dev->sub_odpm->ready) {
+		dev_err(bcl_dev->device, "SUB PMIC meter not initialized\n");
+		return -ENODEV;
+	}
 	for (i = 0; i < METER_CHANNEL_MAX; i++) {
 		rail_i = bcl_dev->sub_odpm->channels[i].rail_i;
 		bcl_dev->sub_rail_names[i] = bcl_dev->sub_odpm->chip.rails[rail_i].schematic_name;
