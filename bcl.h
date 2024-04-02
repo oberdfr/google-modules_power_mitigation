@@ -393,18 +393,9 @@ struct bcl_device {
 
 	bool enabled_br_stats;
 	bool data_logging_initialized;
-	bool is_data_logging_running;
 	unsigned int triggered_idx;
 	ssize_t br_stats_size;
 	struct brownout_stats *br_stats;
-	struct mutex data_logging_lock;
-	struct delayed_work data_logging_complete_work;
-	struct task_struct *main_task;
-	struct task_struct *sub_task;
-	struct kthread_worker main_meter_worker;
-	struct kthread_worker sub_meter_worker;
-	struct kthread_work main_meter_work;
-	struct kthread_work sub_meter_work;
 	/* module id */
 	struct bcl_mitigation_conf main_mitigation_conf[METER_CHANNEL_MAX];
 	struct bcl_mitigation_conf sub_mitigation_conf[METER_CHANNEL_MAX];
