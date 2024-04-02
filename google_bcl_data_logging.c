@@ -97,12 +97,6 @@ void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 	if (!bcl_dev->data_logging_initialized)
 		return;
 
-	mutex_trylock(&bcl_dev->data_logging_lock);
-	if (bcl_dev->is_data_logging_running) {
-		mutex_unlock(&bcl_dev->data_logging_lock);
-		return;
-	}
-	bcl_dev->is_data_logging_running = true;
 	google_bcl_init_brownout_stats(bcl_dev);
 
 	google_bcl_write_irq_triggered_event(bcl_dev, idx);
@@ -115,29 +109,22 @@ void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 
 	bcl_dev->triggered_idx = idx;
 	sysfs_notify(&bcl_dev->mitigation_dev->kobj, "br_stats", "triggered_idx");
-	mutex_unlock(&bcl_dev->data_logging_lock);
 }
 
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev)
 {
 	bcl_dev->data_logging_initialized = false;
-	mutex_lock(&bcl_dev->data_logging_lock);
-	bcl_dev->is_data_logging_running = false;
-	mutex_unlock(&bcl_dev->data_logging_lock);
-	mutex_destroy(&bcl_dev->data_logging_lock);
 	kfree(bcl_dev->br_stats);
 }
 
 int google_bcl_init_data_logging(struct bcl_device *bcl_dev)
 {
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
-	mutex_init(&bcl_dev->data_logging_lock);
 	bcl_dev->br_stats_size = sizeof(struct brownout_stats);
 	bcl_dev->br_stats = kmalloc(bcl_dev->br_stats_size, GFP_KERNEL);
 	if (!bcl_dev->br_stats)
 		return -ENOMEM;
 	google_bcl_init_brownout_stats(bcl_dev);
-	bcl_dev->is_data_logging_running = false;
 	bcl_dev->data_logging_initialized = true;
 
 	return 0;

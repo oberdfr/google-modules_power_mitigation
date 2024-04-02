@@ -470,7 +470,6 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		destroy_workqueue(zone->warn_wq);
 		cancel_delayed_work(&zone->irq_untriggered_work);
 	}
-	mutex_destroy(&bcl_dev->data_logging_lock);
 	mutex_destroy(&bcl_dev->state_trans_lock);
 	mutex_destroy(&bcl_dev->cpu_ratio_lock);
 	mutex_destroy(&bcl_dev->gpu_ratio_lock);
