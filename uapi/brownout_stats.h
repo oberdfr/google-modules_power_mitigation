@@ -27,6 +27,10 @@
 #define PMIC_OVERHEAT	16
 #define BATOILO	BATOILO1
 #define TRIGGERED_SOURCE_MAX	17
+#define VIMON_BUF_SIZE		12
+#define VIMON_BYTES_PER_ENTRY	2
+#define MAX77779_VIMON_DATA_SIZE	(VIMON_BUF_SIZE / VIMON_BYTES_PER_ENTRY)
+#define MAX77779_VIMON_CH_DATA_SIZE	(MAX77779_VIMON_DATA_SIZE / 2)
 
 /* Mitigation Module ID need to be sync with the dt-bindings.
  * google-modules/soc/gs/include/dt-bindings/soc/google/zumapro-bcl.h
@@ -57,6 +61,13 @@ struct odpm_lpf {
 	u32 value[METER_CHANNEL_MAX];
 };
 
+struct vimon_data {
+	s32 data[MAX77779_VIMON_DATA_SIZE];
+	s32 v_data[MAX77779_VIMON_CH_DATA_SIZE];
+	s32 i_data[MAX77779_VIMON_CH_DATA_SIZE];
+	size_t count;
+};
+
 /* Notice: sysfs only allocates a buffer of PAGE_SIZE
  * so the sizeof brownout_stats should be smaller than that
  */
@@ -66,6 +77,7 @@ struct brownout_stats {
 
 	struct odpm_lpf main_odpm_lpf;
 	struct odpm_lpf sub_odpm_lpf;
+	struct vimon_data vimon_intf;
 	u32 triggered_state;
 };
 static_assert(sizeof(struct brownout_stats) <= PAGE_SIZE);

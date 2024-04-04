@@ -13,8 +13,8 @@
 #include "bcl.h"
 
 void compute_mitigation_modules(struct bcl_device *bcl_dev,
-						struct bcl_mitigation_conf *mitigation_conf,
-						u32 *odpm_lpf_value) {
+				struct bcl_mitigation_conf *mitigation_conf, u32 *odpm_lpf_value)
+{
 	int i;
 	for (i = 0; i < METER_CHANNEL_MAX; i++) {
 		if (odpm_lpf_value[i] >= mitigation_conf[i].threshold) {
@@ -22,6 +22,24 @@ void compute_mitigation_modules(struct bcl_device *bcl_dev,
 					  &bcl_dev->mitigation_module_ids);
 		}
 	}
+}
+
+void log_ifpmic_power(struct bcl_device *bcl_dev)
+{
+	int idx, ret;
+	int i = 0;
+
+	if (bcl_dev->ifpmic != MAX77779)
+		return;
+	ret = bcl_vimon_read(bcl_dev);
+	if (ret <= 0)
+		return;
+	for (idx = 0; idx < ret / VIMON_BYTES_PER_ENTRY; idx = idx + 2) {
+		bcl_dev->br_stats->vimon_intf.v_data[i] = bcl_dev->vimon_intf.data[idx];
+		bcl_dev->br_stats->vimon_intf.i_data[i] = bcl_dev->vimon_intf.data[idx + 1];
+		i++;
+	}
+	bcl_dev->br_stats->vimon_intf.count = i;
 }
 
 static void data_logging_main_odpm_lpf_task(struct bcl_device *bcl_dev)
@@ -85,8 +103,9 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo2_triggered");
 	else if (idx == SMPL_WARN)
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "smpl_triggered");
-	else
-		return;
+	if (idx >= UVLO1 && idx <= BATOILO2 && state == LIGHT)
+		log_ifpmic_power(bcl_dev);
+	return;
 }
 
 void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
