@@ -453,6 +453,9 @@ static int battery_supply_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+/*
+ * For PROBE_DEFER used.
+ */
 static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 {
 	int i = 0;
@@ -463,12 +466,19 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		if (!bcl_dev->zone[i])
 			continue;
 		zone = bcl_dev->zone[i];
+		if (zone->irq_reg) {
+			if ((bcl_dev->ifpmic == MAX77779) && ((i == BATOILO2) || (i == UVLO2)))
+				devm_free_irq(bcl_dev->device, bcl_dev->pmic_irq, bcl_dev);
+			else
+				devm_free_irq(bcl_dev->device, zone->bcl_irq, zone);
+		}
 		if (zone->tz)
 			devm_thermal_of_zone_unregister(bcl_dev->device, zone->tz);
 		mutex_destroy(&zone->req_lock);
 		destroy_workqueue(zone->triggered_wq);
 		destroy_workqueue(zone->warn_wq);
 		cancel_delayed_work(&zone->irq_untriggered_work);
+		devm_kfree(bcl_dev->device, zone);
 	}
 	mutex_destroy(&bcl_dev->state_trans_lock);
 	mutex_destroy(&bcl_dev->cpu_ratio_lock);
@@ -742,6 +752,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	int ret = 0;
 	struct bcl_zone *zone;
 	bool to_conf = true;
+	struct irq_data *irqdata;
 	u32 default_intr_flag, latched_intr_flag, deassert_intr_flag;
 
 	if (!bcl_dev)
@@ -764,6 +775,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	zone->parent = bcl_dev;
 	zone->irq_type = type;
 	zone->devname = devname;
+	zone->device = bcl_dev->device;
 	atomic_set(&zone->bcl_cnt, 0);
 	atomic_set(&zone->last_triggered.triggered_cnt[START], 0);
 	atomic_set(&zone->last_triggered.triggered_cnt[LIGHT], 0);
@@ -792,7 +804,6 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 			if (ret < 0) {
 				dev_err(zone->device, "Failed to request l-IRQ: %d: %d\n",
 					irq, ret);
-				devm_kfree(bcl_dev->device, zone);
 				return ret;
 			}
 			zone->irq_reg = true;
@@ -802,22 +813,23 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO))
 		to_conf = false;
 	if (to_conf) {
+		irqdata = irq_get_irq_data((unsigned int)irq);
+		irqd_set_trigger_type(irqdata, latched_intr_flag);
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
 						latched_irq_handler,
 						latched_intr_flag, devname, zone);
 
 		if (ret < 0) {
 			dev_err(zone->device, "Failed to request l-IRQ: %d: %d\n", irq, ret);
-			devm_kfree(bcl_dev->device, zone);
 			return ret;
 		}
+		irqd_set_trigger_type(irqdata, deassert_intr_flag);
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
 						deassert_irq_handler,
 						deassert_intr_flag, devname, zone);
 
 		if (ret < 0) {
 			dev_err(zone->device, "Failed to request d-IRQ: %d: %d\n", irq, ret);
-			devm_kfree(bcl_dev->device, zone);
 			return ret;
 		}
 		zone->irq_reg = true;
@@ -2255,9 +2267,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
-	if (google_set_main_pmic(bcl_dev) < 0)
-		goto bcl_soc_probe_exit;
 	if (google_set_sub_pmic(bcl_dev) < 0)
+		goto bcl_soc_probe_exit;
+	if (google_set_main_pmic(bcl_dev) < 0)
 		goto bcl_soc_probe_exit;
 	ret = google_bcl_init_notifier(bcl_dev);
 	if (ret < 0)
