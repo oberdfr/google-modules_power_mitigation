@@ -1258,7 +1258,7 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		}
 		/* Setup mitigation IRQ */
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
-		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0x0);
+		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0xA0);
 		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 		                                      MAX77779_PMIC_INTB_MASK, &retval);
 		val = 0;
