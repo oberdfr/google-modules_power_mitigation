@@ -2252,7 +2252,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	bcl_dev->device = &pdev->dev;
 
 	mutex_init(&bcl_dev->sysreg_lock);
-	platform_set_drvdata(pdev, bcl_dev);
 
 	ret = google_bcl_init_data_logging(bcl_dev);
 	if (ret < 0)
@@ -2290,6 +2289,7 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
+	platform_set_drvdata(pdev, bcl_dev);
 	smp_store_release(&bcl_dev->enabled, true);
 
 	return 0;
