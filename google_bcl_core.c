@@ -315,9 +315,6 @@ static void google_bcl_release_throttling(struct bcl_zone *zone)
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, false);
 #endif
-	mutex_lock(&zone->req_lock);
-	complete(&zone->deassert);
-	mutex_unlock(&zone->req_lock);
 	if (zone->irq_type == IF_PMIC) {
 		update_irq_end_times(bcl_dev, zone->idx);
 		if (zone->idx >= UVLO1 && zone->idx <= BATOILO2 && bcl_dev->ifpmic == MAX77779)
@@ -340,6 +337,9 @@ static void google_warn_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 		google_bcl_upstream_state(zone, DISABLED);
 #endif
+		mutex_lock(&zone->req_lock);
+		complete(&zone->deassert);
+		mutex_unlock(&zone->req_lock);
 		google_bcl_release_throttling(zone);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
@@ -679,11 +679,11 @@ static void google_irq_triggered_work(struct work_struct *work)
 	if (idx == BATOILO && bcl_dev->config_modem)
 		gpio_set_value(bcl_dev->modem_gpio2_pin, 1);
 
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
+	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
 	google_bcl_upstream_state(zone, MEDIUM);
 
 	/* MEDIUM phase: b/300504518 */
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_10MS);
+	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
 	google_bcl_upstream_state(zone, HEAVY);
 	/* We most likely have to shutdown after this */
 	/* HEAVY phase */
@@ -706,9 +706,6 @@ static void google_irq_untriggered_work(struct work_struct *work)
 	google_bcl_upstream_state(zone, START);
 #endif
 	google_bcl_release_throttling(zone);
-	/* IRQ falling edge */
-	if (zone->irq_type == IF_PMIC)
-		bcl_cb_clr_irq(bcl_dev, zone->idx);
 }
 
 static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)

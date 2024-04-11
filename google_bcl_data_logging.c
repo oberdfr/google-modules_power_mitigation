@@ -103,7 +103,7 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo2_triggered");
 	else if (idx == SMPL_WARN)
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "smpl_triggered");
-	if (idx >= UVLO1 && idx <= BATOILO2 && state == LIGHT)
+	if ((idx == UVLO1 || idx == BATOILO1) && state == LIGHT)
 		log_ifpmic_power(bcl_dev);
 	return;
 }
