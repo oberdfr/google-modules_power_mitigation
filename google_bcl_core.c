@@ -215,9 +215,7 @@ static irqreturn_t deassert_irq_handler(int irq, void *data)
 		idx = irq_val;
 		zone = bcl_dev->zone[idx];
 	}
-	mutex_lock(&zone->req_lock);
 	complete(&zone->deassert);
-	mutex_unlock(&zone->req_lock);
 	mod_delayed_work(system_highpri_wq, &zone->irq_untriggered_work, 0);
 exit:
 	return IRQ_HANDLED;
@@ -225,14 +223,8 @@ exit:
 
 static int google_bcl_wait_for_response_locked(struct bcl_zone *zone, int timeout_ms)
 {
-	mutex_lock(&zone->req_lock);
 	reinit_completion(&zone->deassert);
-	if (wait_for_completion_timeout(&zone->deassert, msecs_to_jiffies(timeout_ms)) == 0) {
-		mutex_unlock(&zone->req_lock);
-		return -EINVAL;
-	}
-	mutex_unlock(&zone->req_lock);
-	return 0;
+	return wait_for_completion_timeout(&zone->deassert, msecs_to_jiffies(timeout_ms));
 }
 
 static irqreturn_t latched_irq_handler(int irq, void *data)
@@ -337,9 +329,7 @@ static void google_warn_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 		google_bcl_upstream_state(zone, DISABLED);
 #endif
-		mutex_lock(&zone->req_lock);
 		complete(&zone->deassert);
-		mutex_unlock(&zone->req_lock);
 		google_bcl_release_throttling(zone);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
@@ -474,7 +464,6 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		}
 		if (zone->tz)
 			devm_thermal_of_zone_unregister(bcl_dev->device, zone->tz);
-		mutex_destroy(&zone->req_lock);
 		destroy_workqueue(zone->triggered_wq);
 		destroy_workqueue(zone->warn_wq);
 		cancel_delayed_work(&zone->irq_untriggered_work);
@@ -650,7 +639,7 @@ static void google_irq_triggered_work(struct work_struct *work)
 {
 	struct bcl_zone *zone = container_of(work, struct bcl_zone, irq_triggered_work);
 	struct bcl_device *bcl_dev;
-	int idx, ret;
+	int idx;
 
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	if (zone->bcl_qos)
@@ -663,7 +652,8 @@ static void google_irq_triggered_work(struct work_struct *work)
 	google_bcl_start_data_logging(bcl_dev, idx);
 
 	/* LIGHT phase */
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
+	if (google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS) > 0)
+		return;
 	google_bcl_upstream_state(zone, LIGHT);
 
 	if (bcl_dev->batt_psy_initialized) {
@@ -679,17 +669,17 @@ static void google_irq_triggered_work(struct work_struct *work)
 	if (idx == BATOILO && bcl_dev->config_modem)
 		gpio_set_value(bcl_dev->modem_gpio2_pin, 1);
 
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
+	if (google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS) > 0)
+		return;
 	google_bcl_upstream_state(zone, MEDIUM);
 
 	/* MEDIUM phase: b/300504518 */
-	ret = google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS);
+	if (google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS) > 0)
+		return;
 	google_bcl_upstream_state(zone, HEAVY);
 	/* We most likely have to shutdown after this */
 	/* HEAVY phase */
 	/* IRQ deasserted */
-	if (ret == 0)
-		return;
 }
 
 static void google_irq_untriggered_work(struct work_struct *work)
@@ -762,7 +752,6 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 
 	default_intr_flag = IRQF_ONESHOT | IRQF_SHARED;
 	init_completion(&zone->deassert);
-	mutex_init(&zone->req_lock);
 	zone->idx = idx;
 	zone->bcl_pin = pin;
 	zone->bcl_irq = irq;

@@ -195,7 +195,6 @@ struct zone_triggered_stats {
 
 struct bcl_zone {
 	struct device *device;
-	struct mutex req_lock;
 	struct completion deassert;
 	struct workqueue_struct *triggered_wq;
 	struct workqueue_struct *warn_wq;
