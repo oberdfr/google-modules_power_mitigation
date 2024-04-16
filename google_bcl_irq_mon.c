@@ -38,6 +38,7 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 	u8 lsb, msb, thr;
 	u16 odpm_pwr;
 	char buf[50];
+	int pmic_sel;
 
 	if (bcl_dev->ifpmic_irq_bins[batt][pwrwarn].start_time == 0)
 		return;
@@ -49,28 +50,30 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 		atomic_inc(&bcl_dev->ifpmic_irq_bins[batt][pwrwarn].bt_5ms_10ms_count);
 	else {
 		atomic_inc(&bcl_dev->ifpmic_irq_bins[batt][pwrwarn].gt_10ms_count);
-		if (bcl_dev->rffe_mitigation_enable && pwrwarn == RFFE_BCL_BIN &&
+		if (bcl_dev->rffe_mitigation_enable &&
+		    (pwrwarn == RFFE_BCL_BIN || pwrwarn == MMWAVE_BCL_BIN) &&
 		    (batt == BATOILO_IRQ_BIN || batt == BATOILO2_IRQ_BIN)) {
-			if (meter_read(CORE_PMIC_MAIN, bcl_dev, PWRWARN_LPF_RFFE_DATA_MAIN_0,
+			pmic_sel = pwrwarn == RFFE_BCL_BIN ? CORE_PMIC_MAIN : CORE_PMIC_SUB;
+			if (meter_read(pmic_sel, bcl_dev, PWRWARN_LPF_RFFE_MMWAVE_DATA_0,
 				       &lsb)) {
-				dev_err(bcl_dev->device, "cannot read rffe power\n");
+				dev_err(bcl_dev->device, "cannot read rffe or mmwave power\n");
 				goto end_bin_incr_ifpmic;
 			}
-			if (meter_read(CORE_PMIC_MAIN, bcl_dev, PWRWARN_LPF_RFFE_DATA_MAIN_1,
+			if (meter_read(pmic_sel, bcl_dev, PWRWARN_LPF_RFFE_MMWAVE_DATA_1,
 				       &msb)) {
-				dev_err(bcl_dev->device, "cannot read rffe power\n");
+				dev_err(bcl_dev->device, "cannot read rffe or mmwave power\n");
 				goto end_bin_incr_ifpmic;
 			}
-			if (meter_read(CORE_PMIC_MAIN, bcl_dev, PWRWARN_THRESH_MAIN, &thr)) {
-				dev_err(bcl_dev->device, "cannot read rffe power\n");
+			if (meter_read(pmic_sel, bcl_dev, PWRWARN_THRESH_RFFE_MMWAVE, &thr)) {
+				dev_err(bcl_dev->device, "cannot read rffe or mmwave power\n");
 				goto end_bin_incr_ifpmic;
 			}
-			odpm_pwr = (lsb | ((msb & PWRWARN_LPF_RFFE_MSB_MASK) << 8)) >>
-				    PWRWARN_LPF_RFFE_RSHIFT;
+			odpm_pwr = (lsb | ((msb & PWRWARN_LPF_RFFE_MMWAVE_MSB_MASK) << 8)) >>
+				    PWRWARN_LPF_RFFE_MMWAVE_RSHIFT;
 			if (odpm_pwr < thr)
 				goto end_bin_incr_ifpmic;
-			scnprintf(buf, sizeof(buf), "BCL: RFFE ODPM pwr: %i, thresh: %i trig crash",
-				  odpm_pwr, thr);
+			scnprintf(buf, sizeof(buf), "BCL: %s ODPM pwr: %i, thresh: %i trig crash",
+				  pwrwarn == RFFE_BCL_BIN ? "RFFE" : "MMWAVE", odpm_pwr, thr);
 			modem_force_crash_exit_ext(buf);
 			dev_err(bcl_dev->device, buf);
 		}
