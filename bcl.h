@@ -196,8 +196,6 @@ struct zone_triggered_stats {
 struct bcl_zone {
 	struct device *device;
 	struct completion deassert;
-	struct workqueue_struct *triggered_wq;
-	struct workqueue_struct *warn_wq;
 	struct work_struct irq_triggered_work;
 	struct delayed_work irq_untriggered_work;
 	struct work_struct warn_work;
@@ -295,6 +293,8 @@ struct bcl_device {
 	struct odpm_info *sub_odpm;
 	void __iomem *sysreg_cpucl0;
 	struct power_supply *batt_psy;
+	struct workqueue_struct *triggered_wq;
+	struct workqueue_struct *warn_wq;
 
 	struct notifier_block psy_nb;
 	struct bcl_zone *zone[TRIGGERED_SOURCE_MAX];
