@@ -2249,9 +2249,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	/* br_stats no need to run without mitigation app */
 	bcl_dev->enabled_br_stats = false;
 
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
-	bcl_dev->pmic_irq = platform_get_irq(pdev, 0);
-#endif
 	ret = google_bcl_init_instruction(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
