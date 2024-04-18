@@ -216,7 +216,7 @@ static irqreturn_t deassert_irq_handler(int irq, void *data)
 		zone = bcl_dev->zone[idx];
 	}
 	complete(&zone->deassert);
-	mod_delayed_work(system_highpri_wq, &zone->irq_untriggered_work, 0);
+	mod_delayed_work(system_unbound_wq, &zone->irq_untriggered_work, 0);
 exit:
 	return IRQ_HANDLED;
 }
