@@ -255,7 +255,7 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 	}
 	if (zone->irq_type == IF_PMIC)
 		bcl_cb_clr_irq(bcl_dev, idx);
-	queue_work(zone->triggered_wq, &zone->irq_triggered_work);
+	queue_work(bcl_dev->triggered_wq, &zone->irq_triggered_work);
 exit:
 	return IRQ_HANDLED;
 }
@@ -334,7 +334,7 @@ static void google_warn_work(struct work_struct *work)
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
 		/* ODPM Read to kick off LIGHT module throttling */
-		queue_work(zone->warn_wq, &zone->warn_work);
+		queue_work(bcl_dev->warn_wq, &zone->warn_work);
 	}
 	if (zone->tz)
 		thermal_zone_device_update(zone->tz, THERMAL_EVENT_UNSPECIFIED);
@@ -464,11 +464,11 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		}
 		if (zone->tz)
 			devm_thermal_of_zone_unregister(bcl_dev->device, zone->tz);
-		destroy_workqueue(zone->triggered_wq);
-		destroy_workqueue(zone->warn_wq);
 		cancel_delayed_work(&zone->irq_untriggered_work);
 		devm_kfree(bcl_dev->device, zone);
 	}
+	destroy_workqueue(bcl_dev->triggered_wq);
+	destroy_workqueue(bcl_dev->warn_wq);
 	mutex_destroy(&bcl_dev->state_trans_lock);
 	mutex_destroy(&bcl_dev->cpu_ratio_lock);
 	mutex_destroy(&bcl_dev->gpu_ratio_lock);
@@ -661,7 +661,7 @@ static void google_irq_triggered_work(struct work_struct *work)
 		ocpsmpl_read_stats(bcl_dev, &zone->bcl_stats, bcl_dev->batt_psy);
 		update_tz(zone, idx, true);
 	}
-	queue_work(zone->warn_wq, &zone->warn_work);
+	queue_work(bcl_dev->warn_wq, &zone->warn_work);
 
 	if (zone->irq_type == IF_PMIC)
 		update_irq_start_times(bcl_dev, idx);
@@ -721,7 +721,7 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 	if (zone) {
 		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
 		zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
-		queue_work(zone->triggered_wq, &zone->irq_triggered_work);
+		queue_work(bcl_dev->triggered_wq, &zone->irq_triggered_work);
 	}
 
 	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
@@ -821,17 +821,6 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 		zone->irq_reg = true;
 		zone->disabled = true;
 		disable_irq(zone->bcl_irq);
-	}
-	zone->triggered_wq = alloc_workqueue(devname, WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
-	if (!zone->triggered_wq) {
-		dev_err(zone->device, "%s: ERR! fail to create triggered_wq\n", devname);
-		return -ENOMEM;
-	}
-	zone->warn_wq = alloc_workqueue(devname, WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
-	if (!zone->warn_wq) {
-		dev_err(zone->device, "%s: ERR! fail to create warn_wq\n", devname);
-		destroy_workqueue(zone->triggered_wq);
-		return -ENOMEM;
 	}
 	INIT_WORK(&zone->irq_triggered_work, google_irq_triggered_work);
 	INIT_WORK(&zone->warn_work, google_warn_work);
@@ -1831,6 +1820,21 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 extern const struct attribute_group *mitigation_mw_groups[];
 extern const struct attribute_group *mitigation_sq_groups[];
 
+static int google_init_workqueue(struct bcl_device *bcl_dev)
+{
+	bcl_dev->triggered_wq = alloc_workqueue("wq-trip-bcl", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	if (!bcl_dev->triggered_wq) {
+		dev_err(bcl_dev->device, "wq-trip-bcl: ERR! fail to create triggered_wq\n");
+		return -ENOMEM;
+	}
+	bcl_dev->warn_wq = alloc_workqueue("wq-monitor-bcl", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	if (!bcl_dev->warn_wq) {
+		dev_err(bcl_dev->device, "wq-monitor-bcl: ERR! fail to create warn_wq\n");
+		destroy_workqueue(bcl_dev->triggered_wq);
+		return -ENOMEM;
+	}
+	return 0;
+}
 static int google_init_fs(struct bcl_device *bcl_dev)
 {
 	if (bcl_dev->ifpmic == MAX77759)
@@ -2249,6 +2253,9 @@ static int google_bcl_probe(struct platform_device *pdev)
 	bcl_dev->pmic_irq = platform_get_irq(pdev, 0);
 #endif
 	ret = google_bcl_init_instruction(bcl_dev);
+	if (ret < 0)
+		goto bcl_soc_probe_exit;
+	ret = google_init_workqueue(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 
