@@ -1395,8 +1395,8 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		return -ENODEV;
 	}
 
+	google_bcl_setup_votable(bcl_dev);
 	if (bcl_dev->ifpmic == MAX77779) {
-		google_bcl_setup_votable(bcl_dev);
 		ret = platform_get_irq(pdev, 0);
 		if (ret < 0) {
 			dev_err(bcl_dev->device, "Failed to get irq: %d\n", ret);
@@ -1421,6 +1421,14 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		ret = of_property_read_u32(np, "batoilo2_trig_lvl", &retval);
 		retval = ret ? BO_LIMIT : retval;
 		bcl_dev->batt_irq_conf2.batoilo_trig_lvl =
+				(retval - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo_usb_trig_lvl", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_usb_trig_lvl = ret ?
+				bcl_dev->batt_irq_conf1.batoilo_trig_lvl :
+				(retval - bcl_dev->batt_irq_conf1.batoilo_lower_limit) / BO_STEP;
+		ret = of_property_read_u32(np, "batoilo2_usb_trig_lvl", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_usb_trig_lvl = ret ?
+				bcl_dev->batt_irq_conf2.batoilo_trig_lvl :
 				(retval - bcl_dev->batt_irq_conf2.batoilo_lower_limit) / BO_STEP;
 		ret = of_property_read_u32(np, "batoilo_wlc_trig_lvl", &retval);
 		bcl_dev->batt_irq_conf1.batoilo_wlc_trig_lvl = ret ?
