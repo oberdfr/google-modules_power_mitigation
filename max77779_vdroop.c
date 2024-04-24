@@ -11,14 +11,15 @@
 #include <max777x9_bcl.h>
 #include "bcl.h"
 
-int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable)
+int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 lower_enable, u8 set_batoilo1_lvl,
+                                u8 set_batoilo2_lvl)
 {
 	int ret;
 	u8 val, batoilo1_lvl, batoilo2_lvl;
 
-	if (wlc_tx_enable) {
-		batoilo1_lvl = bcl_dev->batt_irq_conf1.batoilo_wlc_trig_lvl;
-		batoilo2_lvl = bcl_dev->batt_irq_conf2.batoilo_wlc_trig_lvl;
+	if (lower_enable) {
+		batoilo1_lvl = set_batoilo1_lvl;
+		batoilo2_lvl = set_batoilo2_lvl;
 	} else {
 		batoilo1_lvl = bcl_dev->batt_irq_conf1.batoilo_trig_lvl;
 		batoilo2_lvl = bcl_dev->batt_irq_conf2.batoilo_trig_lvl;

@@ -258,6 +258,7 @@ struct bcl_batt_irq_conf {
 	int batoilo_upper_limit;
 	u8 batoilo_trig_lvl;
 	u8 batoilo_wlc_trig_lvl;
+	u8 batoilo_usb_trig_lvl;
 	u8 batoilo_bat_open_to;
 	u8 batoilo_rel;
 	u8 batoilo_det;
@@ -384,6 +385,7 @@ struct bcl_device {
 	enum IFPMIC ifpmic;
 
 	struct gvotable_election *toggle_wlc;
+	struct gvotable_election *toggle_usb;
 
 	struct bcl_evt_count evt_cnt;
 	struct bcl_evt_count evt_cnt_latest;
@@ -437,7 +439,8 @@ int max77759_clr_irq(struct bcl_device *bcl_dev, int idx);
 int max77759_vimon_read(struct bcl_device *bcl_dev);
 int max77779_get_irq(struct bcl_device *bcl_dev, u8 *irq_val);
 int max77779_clr_irq(struct bcl_device *bcl_dev, int idx);
-int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 wlc_tx_enable);
+int max77779_adjust_batoilo_lvl(struct bcl_device *bcl_dev, u8 lower_enable, u8 set_batoilo1_lvl,
+                                u8 set_batoilo2_lvl);
 int max77779_vimon_read(struct bcl_device *bcl_dev);
 int google_bcl_setup_votable(struct bcl_device *bcl_dev);
 void google_bcl_remove_votable(struct bcl_device *bcl_dev);
