@@ -10,6 +10,8 @@
 
 #include <linux/atomic.h>
 #include <linux/completion.h>
+#include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/module.h>
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
@@ -2304,6 +2306,7 @@ static int google_bcl_remove(struct platform_device *pdev)
 
 	pmic_device_destroy(bcl_dev->mitigation_dev->devt);
 	debugfs_remove_recursive(bcl_dev->debug_entry);
+	cpu_pm_unregister_notifier(&bcl_dev->cpu_nb);
 	google_bcl_remove_thermal(bcl_dev);
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	if (smp_load_acquire(&bcl_dev->enabled))
