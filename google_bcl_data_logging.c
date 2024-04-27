@@ -23,8 +23,6 @@ void compute_mitigation_modules(struct bcl_device *bcl_dev,
 		}
 	}
 }
-#if 0
-/* b/337095350 to follow up on re-enabling */
 static void log_ifpmic_power(struct bcl_device *bcl_dev)
 {
 	int idx, ret;
@@ -42,7 +40,6 @@ static void log_ifpmic_power(struct bcl_device *bcl_dev)
 	}
 	bcl_dev->br_stats->vimon_intf.count = i;
 }
-#endif
 
 static void data_logging_main_odpm_lpf_task(struct bcl_device *bcl_dev)
 {
@@ -99,8 +96,11 @@ void google_bcl_upstream_state(struct bcl_zone *zone, enum MITIGATION_MODE state
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "uvlo1_triggered");
 	else if (idx == UVLO2)
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "uvlo2_triggered");
-	else if (idx == BATOILO1)
+	else if (idx == BATOILO1) {
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo1_triggered");
+		if (state == LIGHT)
+			log_ifpmic_power(bcl_dev);
+	}
 	else if (idx == BATOILO2)
 		sysfs_notify(&bcl_dev->mitigation_dev->kobj, "triggered_state", "oilo2_triggered");
 	else if (idx == SMPL_WARN)
@@ -132,8 +132,9 @@ void google_bcl_start_data_logging(struct bcl_device *bcl_dev, int idx)
 
 void google_bcl_remove_data_logging(struct bcl_device *bcl_dev)
 {
+	if (bcl_dev->data_logging_initialized)
+		kfree(bcl_dev->br_stats);
 	bcl_dev->data_logging_initialized = false;
-	kfree(bcl_dev->br_stats);
 }
 
 int google_bcl_init_data_logging(struct bcl_device *bcl_dev)

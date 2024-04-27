@@ -94,6 +94,8 @@ int google_bcl_setup_votable(struct bcl_device *bcl_dev)
 
 void google_bcl_remove_votable(struct bcl_device *bcl_dev)
 {
-	gvotable_destroy_election(bcl_dev->toggle_wlc);
-	gvotable_destroy_election(bcl_dev->toggle_usb);
+	if (!IS_ERR_OR_NULL(bcl_dev->toggle_wlc))
+		gvotable_destroy_election(bcl_dev->toggle_wlc);
+	if (!IS_ERR_OR_NULL(bcl_dev->toggle_usb))
+		gvotable_destroy_election(bcl_dev->toggle_usb);
 }
