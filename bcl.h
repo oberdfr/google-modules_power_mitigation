@@ -54,11 +54,12 @@
 #define MITIGATION_PRINT_BUF_SIZE  	256
 #define MITIGATION_TMP_BUF_SIZE	16
 #define MAXMIN_RESET_VAL		0x807F
-#define PWRWARN_LPF_RFFE_MMWAVE_DATA_0		0xCF
-#define PWRWARN_LPF_RFFE_MMWAVE_DATA_1		0xD0
-#define PWRWARN_THRESH_RFFE_MMWAVE		0x3C
-#define PWRWARN_LPF_RFFE_MMWAVE_MSB_MASK	0x0F
-#define PWRWARN_LPF_RFFE_MMWAVE_RSHIFT		4
+#define PWRWARN_LPF_RFFE_MMWAVE_DATA_0         0xCF
+#define PWRWARN_LPF_RFFE_MMWAVE_DATA_1         0xD0
+#define PWRWARN_THRESH_RFFE_MMWAVE             0x3C
+#define PWRWARN_LPF_RFFE_MMWAVE_MSB_MASK       0x0F
+#define PWRWARN_LPF_RFFE_MMWAVE_RSHIFT         4
+
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
 #define MAIN_OFFSRC1 S2MPG10_PM_OFFSRC
@@ -197,7 +198,7 @@ struct bcl_zone {
 	struct device *device;
 	struct completion deassert;
 	struct work_struct irq_triggered_work;
-	struct delayed_work irq_untriggered_work;
+	struct work_struct irq_untriggered_work;
 	struct work_struct warn_work;
 	struct delayed_work enable_irq_work;
 	struct thermal_zone_device *tz;
@@ -294,8 +295,6 @@ struct bcl_device {
 	struct odpm_info *sub_odpm;
 	void __iomem *sysreg_cpucl0;
 	struct power_supply *batt_psy;
-	struct workqueue_struct *triggered_wq;
-	struct workqueue_struct *warn_wq;
 
 	struct notifier_block psy_nb;
 	struct bcl_zone *zone[TRIGGERED_SOURCE_MAX];
