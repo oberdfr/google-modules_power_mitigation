@@ -290,10 +290,8 @@ int google_bcl_init_notifier(struct bcl_device *bcl_dev)
 			(i == LITTLE_CLUSTER) ? CPUCL0_CLKDIVSTEP_STAT : CLKDIVSTEP_STAT;
 		bcl_dev->cpu_buff_conf[i].rd_update_rqd = BIT(CPU_BUFF_VALS_MAX) - 1;
 	}
-	cpus_read_lock();
 	bcl_dev->cpu_nb.notifier_call = bcl_dev_cpu_notifier;
 	ret = cpu_pm_register_notifier(&bcl_dev->cpu_nb);
-	cpus_read_unlock();
 
 	return ret;
 }
