@@ -2336,6 +2336,14 @@ static int google_bcl_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void google_bcl_shutdown(struct platform_device *pdev)
+{
+	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
+
+	if (bcl_dev)
+		power_supply_unreg_notifier(&bcl_dev->psy_nb);
+}
+
 static const struct of_device_id match_table[] = {
 	{ .compatible = "google,google-bcl"},
 	{},
@@ -2344,6 +2352,7 @@ static const struct of_device_id match_table[] = {
 static struct platform_driver google_bcl_driver = {
 	.probe  = google_bcl_probe,
 	.remove = google_bcl_remove,
+	.shutdown = google_bcl_shutdown,
 	.id_table = google_id_table,
 	.driver = {
 		.name           = "google_mitigation",
