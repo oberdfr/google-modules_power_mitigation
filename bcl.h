@@ -305,7 +305,6 @@ struct bcl_device {
 	int trip_high_temp;
 	int trip_low_temp;
 	int trip_val;
-	struct mutex state_trans_lock;
 	struct mutex sysreg_lock;
 
 	struct i2c_client *main_pmic_i2c;
@@ -318,9 +317,6 @@ struct bcl_device {
 	struct device *vimon_dev;
 
 	struct mutex cpu_ratio_lock;
-	struct mutex tpu_ratio_lock;
-	struct mutex gpu_ratio_lock;
-	struct mutex aur_ratio_lock;
 	struct bcl_core_conf core_conf[SUBSYSTEM_SOURCE_MAX];
 	struct bcl_cpu_buff_conf cpu_buff_conf[CPU_CLUSTER_MAX];
 	struct notifier_block cpu_nb;
