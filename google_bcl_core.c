@@ -468,8 +468,13 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		if (zone->irq_reg) {
 			if ((bcl_dev->ifpmic == MAX77779) && ((i == BATOILO2) || (i == UVLO2)))
 				devm_free_irq(bcl_dev->device, bcl_dev->pmic_irq, bcl_dev);
-			else
+			else {
+				/* Two calls needed to free 2 IRQ kworkers:
+				 * rising and falling edges
+				 */
 				devm_free_irq(bcl_dev->device, zone->bcl_irq, zone);
+				devm_free_irq(bcl_dev->device, zone->bcl_irq, zone);
+			}
 		}
 		zone->irq_reg = false;
 		if (zone->tz)
@@ -789,6 +794,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	zone->parent = bcl_dev;
 	zone->irq_type = type;
 	zone->devname = devname;
+	zone->disabled = true;
 	zone->device = bcl_dev->device;
 	atomic_set(&zone->bcl_cnt, 0);
 	atomic_set(&zone->last_triggered.triggered_cnt[START], 0);
@@ -844,14 +850,14 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
 						deassert_irq_handler,
 						deassert_intr_flag, devname, zone);
-
 		if (ret < 0) {
 			dev_err(zone->device, "Failed to request d-IRQ: %d: %d\n", irq, ret);
+			/* This free the previous registered IRQ */
+			devm_free_irq(bcl_dev->device, irq, zone);
 			devm_kfree(bcl_dev->device, zone);
 			return ret;
 		}
 		zone->irq_reg = true;
-		zone->disabled = true;
 		disable_irq(zone->bcl_irq);
 	}
 	INIT_WORK(&zone->irq_triggered_work, google_irq_triggered_work);
