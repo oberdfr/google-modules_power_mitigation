@@ -1620,33 +1620,6 @@ static int google_bcl_register_zones_main_common(struct bcl_device *bcl_dev, voi
 		return -ENODEV;
 	}
 
-	ret = google_bcl_register_zone(bcl_dev, PMIC_120C, "PMIC_120C", 0,
-				       PMIC_120C_UPPER_LIMIT - THERMAL_HYST_LEVEL,
-				       pdata->irq_base + INT3_120C, CORE_MAIN_PMIC,
-				       true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: PMIC_120C\n");
-		return -ENODEV;
-	}
-
-	ret = google_bcl_register_zone(bcl_dev, PMIC_140C, "PMIC_140C", 0,
-				       PMIC_140C_UPPER_LIMIT - THERMAL_HYST_LEVEL,
-				       pdata->irq_base + INT3_140C, CORE_MAIN_PMIC,
-				       true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: PMIC_140C\n");
-		return -ENODEV;
-	}
-
-	ret = google_bcl_register_zone(bcl_dev, PMIC_OVERHEAT, "PMIC_OVERHEAT", 0,
-				       PMIC_OVERHEAT_UPPER_LIMIT - THERMAL_HYST_LEVEL,
-				       pdata->irq_base + INT3_TSD, CORE_MAIN_PMIC,
-				       true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: PMIC_OVERHEAT\n");
-		return -ENODEV;
-	}
-
 	return 0;
 }
 
