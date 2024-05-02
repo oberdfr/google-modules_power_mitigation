@@ -9,6 +9,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <trace/events/power.h>
 #if IS_ENABLED(CONFIG_EXYNOS_MODEM_IF)
 #include "soc/google/exynos-modem-ctrl.h"
 #endif
@@ -197,3 +198,22 @@ void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id, struct irq_dura
 #endif
 }
 
+void trace_bcl_zone_stats(struct bcl_zone *zone, int value) {
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
+	int idx = zone->idx;
+
+	if (!trace_clock_set_rate_enabled())
+		return;
+
+	if (idx == UVLO1)
+		trace_clock_set_rate("BCL_ZONE_UVLO1", value, raw_smp_processor_id());
+	else if (idx == UVLO2)
+		trace_clock_set_rate("BCL_ZONE_UVLO2", value, raw_smp_processor_id());
+	else if (idx == BATOILO1)
+		trace_clock_set_rate("BCL_ZONE_BATOILO1", value, raw_smp_processor_id());
+	else if (idx == BATOILO2)
+		trace_clock_set_rate("BCL_ZONE_BATOILO2", value, raw_smp_processor_id());
+	else if (idx == SMPL_WARN)
+		trace_clock_set_rate("BCL_ZONE_SMPL_WARN", value, raw_smp_processor_id());
+#endif
+}
