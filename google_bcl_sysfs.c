@@ -1067,7 +1067,7 @@ static ssize_t uvlo2_lvl_show(struct device *dev, struct device_attribute *attr,
 	if (!bcl_dev)
 		return -EIO;
 	if (!bcl_dev->zone[UVLO2])
-		return -EIO;
+		return sysfs_emit(buf, "disabled\n");
 	if (!bcl_dev->intf_pmic_dev)
 		return -EBUSY;
 	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
@@ -1091,8 +1091,10 @@ static ssize_t uvlo2_lvl_store(struct device *dev,
 
 	if (!bcl_dev)
 		return -EIO;
-	if (!bcl_dev->zone[UVLO2])
+	if (!bcl_dev->zone[UVLO2]) {
+		dev_err(bcl_dev->device, "UVLO2 is disabled\n");
 		return -EIO;
+	}
 	if (value < VD_LOWER_LIMIT || value > VD_UPPER_LIMIT) {
 		dev_err(bcl_dev->device, "UVLO2 %d outside of range %d - %d mV.", value,
 			VD_LOWER_LIMIT, VD_UPPER_LIMIT);

@@ -43,7 +43,7 @@
 #define VSHUNT_MULTIPLIER		10000
 #define MILLI_TO_MICRO			1000
 #define IRQ_ENABLE_DELAY_MS		50
-#define NOT_USED 			-1
+#define NOT_USED 			9999
 #define TIMEOUT_10MS			10
 #define TIMEOUT_5MS			5
 #define TIMEOUT_1MS			1
@@ -54,6 +54,7 @@
 #define MITIGATION_PRINT_BUF_SIZE  	256
 #define MITIGATION_TMP_BUF_SIZE	16
 #define MAXMIN_RESET_VAL		0x807F
+#define BAT_DTLS_OILO_ASSERTED		0x6
 #define PWRWARN_LPF_RFFE_MMWAVE_DATA_0         0xCF
 #define PWRWARN_LPF_RFFE_MMWAVE_DATA_1         0xD0
 #define PWRWARN_THRESH_RFFE_MMWAVE             0x3C
@@ -210,7 +211,7 @@ struct bcl_zone {
 	int bcl_prev_lvl;
 	int bcl_cur_lvl;
 	int bcl_lvl;
-	int bcl_pin;
+	u16 bcl_pin;
 	int bcl_irq;
 	int irq_type;
 	int polarity;
@@ -263,6 +264,8 @@ struct bcl_batt_irq_conf {
 	u8 batoilo_bat_open_to;
 	u8 batoilo_rel;
 	u8 batoilo_det;
+	u8 batoilo_int_rel;
+	u8 batoilo_int_det;
 	u8 uvlo_rel;
 	u8 uvlo_det;
 };

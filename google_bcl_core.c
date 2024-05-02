@@ -219,7 +219,6 @@ static irqreturn_t deassert_irq_handler(int irq, void *data)
 		idx = irq_val;
 		zone = bcl_dev->zone[idx];
 	}
-	complete(&zone->deassert);
 	queue_work(system_unbound_wq, &zone->irq_untriggered_work);
 exit:
 	return IRQ_HANDLED;
@@ -246,8 +245,11 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
-	if (!smp_load_acquire(&bcl_dev->enabled))
+	if (!smp_load_acquire(&bcl_dev->enabled)) {
+		if (zone->irq_type == IF_PMIC)
+			bcl_cb_clr_irq(bcl_dev, idx);
 		return IRQ_HANDLED;
+	}
 
 	if (idx >= UVLO1 && idx <= BATOILO2) {
 		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
@@ -271,7 +273,6 @@ static bool google_warn_check(struct bcl_zone *zone)
 {
 	struct bcl_device *bcl_dev;
 	int gpio_level, assert = 0, ret;
-	int idx = zone->idx;
 	u8 regval;
 
 	bcl_dev = zone->parent;
@@ -280,26 +281,15 @@ static bool google_warn_check(struct bcl_zone *zone)
 		return (gpio_level == zone->polarity);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
-		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
-						      MAX77779_PMIC_VDROOP_INT, &regval);
+		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
+						     MAX77779_CHG_DETAILS_01, &regval);
 		if (ret < 0) {
 			dev_err(bcl_dev->device, "IRQ read: %d, fail\n", regval);
 			return false;
 		}
-		if (idx == BATOILO2)
-			assert = _max77779_pmic_vdroop_int_bat_oilo2_int_get(regval);
-		else if (idx == UVLO2)
-			assert = _max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval);
-		if (assert) {
-			ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
-							       MAX77779_PMIC_VDROOP_INT,
-							       regval);
-			if (ret < 0) {
-				dev_err(bcl_dev->device, "IRQ clear: %d, fail\n", regval);
-				return false;
-			}
+		assert = _max77779_chg_details_01_bat_dtls_get(regval);
+		if (assert == BAT_DTLS_OILO_ASSERTED)
 			return true;
-		}
 	}
 	return false;
 }
@@ -336,8 +326,8 @@ static void google_warn_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 		google_bcl_upstream_state(zone, DISABLED);
 #endif
-		complete(&zone->deassert);
 		google_bcl_release_throttling(zone);
+		complete(&zone->deassert);
 		trace_bcl_zone_stats(zone, 0);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
@@ -468,12 +458,10 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 			continue;
 		zone = bcl_dev->zone[i];
 		if (zone->irq_reg) {
-			if ((bcl_dev->ifpmic == MAX77779) && ((i == BATOILO2) || (i == UVLO2)))
+			if ((bcl_dev->ifpmic == MAX77779) && (i == BATOILO))
 				devm_free_irq(bcl_dev->device, bcl_dev->pmic_irq, bcl_dev);
 			else {
-				/* Two calls needed to free 2 IRQ kworkers:
-				 * rising and falling edges
-				 */
+				/* 2 calls to free 2 IRQ kworkers: rising and falling edges */
 				devm_free_irq(bcl_dev->device, zone->bcl_irq, zone);
 				devm_free_irq(bcl_dev->device, zone->bcl_irq, zone);
 			}
@@ -684,6 +672,7 @@ static void google_irq_triggered_work(struct work_struct *work)
 
 	google_bcl_start_data_logging(bcl_dev, idx);
 
+	queue_work(system_unbound_wq, &zone->warn_work);
 	/* LIGHT phase */
 	if (google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS) > 0)
 		return;
@@ -694,7 +683,6 @@ static void google_irq_triggered_work(struct work_struct *work)
 		ocpsmpl_read_stats(bcl_dev, &zone->bcl_stats, bcl_dev->batt_psy);
 		update_tz(zone, idx, true);
 	}
-	queue_work(system_unbound_wq, &zone->warn_work);
 
 	if (zone->irq_type == IF_PMIC)
 		update_irq_start_times(bcl_dev, idx);
@@ -736,36 +724,21 @@ static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
 {
 	struct bcl_device *bcl_dev = data;
 	struct bcl_zone *zone = NULL;
-	int ret;
-	u8 regval;
 
 	if (IS_ERR_OR_NULL(bcl_dev))
 		return IRQ_HANDLED;
+	bcl_cb_clr_irq(bcl_dev, BATOILO);
 	if (!smp_load_acquire(&bcl_dev->enabled))
 		return IRQ_HANDLED;
-	/* This can one of BATOILO2 or SYS_UVLO2 or EVENT_CNT IRQ */
-	ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
-					      MAX77779_PMIC_VDROOP_INT, &regval);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "irq_thread: read: %d, fail\n", irq);
-		return IRQ_HANDLED;
-	}
-	if (_max77779_pmic_vdroop_int_bat_oilo2_int_get(regval))
-		zone = bcl_dev->zone[BATOILO2];
-	else if	(_max77779_pmic_vdroop_int_sys_uvlo2_int_get(regval))
-		zone = bcl_dev->zone[UVLO2];
+
+	/* This is only BATOILO */
+	zone = bcl_dev->zone[BATOILO];
 	if (zone) {
 		atomic_inc(&zone->last_triggered.triggered_cnt[START]);
 		zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
 		queue_work(system_unbound_wq, &zone->irq_triggered_work);
 	}
 
-	ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
-					       MAX77779_PMIC_VDROOP_INT, regval);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "irq_thread: clear: %d, fail\n", regval);
-		return IRQ_HANDLED;
-	}
 	return IRQ_HANDLED;
 }
 
@@ -816,7 +789,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	}
 	latched_intr_flag = latched_intr_flag | default_intr_flag;
 	deassert_intr_flag = deassert_intr_flag | default_intr_flag;
-	if ((bcl_dev->ifpmic == MAX77779) && (idx == BATOILO2 || idx == UVLO2)) {
+	if ((bcl_dev->ifpmic == MAX77779) && (idx == BATOILO)) {
 		zone->bcl_pin = NOT_USED;
 		if (!zone->irq_reg) {
 			ret = devm_request_threaded_irq(bcl_dev->device, bcl_dev->pmic_irq, NULL,
@@ -830,10 +803,9 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 				devm_kfree(bcl_dev->device, zone);
 				return ret;
 			}
-			if (idx == UVLO2)
-				zone->irq_reg = true;
+			zone->irq_reg = true;
+			to_conf = false;
 		}
-		to_conf = false;
 	}
 	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO))
 		to_conf = false;
@@ -1243,28 +1215,44 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO1, &uvlo1_lvl);
 	uvlo_reg_read(bcl_dev->intf_pmic_dev, bcl_dev->ifpmic, UVLO2, &uvlo2_lvl);
 
-	ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
-				       VD_BATTERY_VOLTAGE - uvlo1_lvl - THERMAL_HYST_LEVEL,
-				       gpio_to_irq(bcl_dev->vdroop1_pin), IF_PMIC, true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: UVLO1\n");
-		return -ENODEV;
-	}
-	ret = google_bcl_register_zone(bcl_dev, BATOILO1, "batoilo", bcl_dev->vdroop2_pin,
-				       batoilo_lvl - THERMAL_HYST_LEVEL,
-				       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
-		return -ENODEV;
-	}
-	ret = google_bcl_register_zone(bcl_dev, UVLO2, "vdroop2", bcl_dev->vdroop2_pin,
-				       VD_BATTERY_VOLTAGE - uvlo2_lvl - THERMAL_HYST_LEVEL,
-				       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
-	if (ret < 0) {
-		dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
-		return -ENODEV;
+	if (bcl_dev->ifpmic == MAX77759) {
+		ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
+				       	       VD_BATTERY_VOLTAGE - uvlo1_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop1_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: UVLO1\n");
+			return -ENODEV;
+		}
+		ret = google_bcl_register_zone(bcl_dev, BATOILO1, "batoilo", bcl_dev->vdroop2_pin,
+				       	       batoilo_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
+			return -ENODEV;
+		}
+		ret = google_bcl_register_zone(bcl_dev, UVLO2, "vdroop2", bcl_dev->vdroop2_pin,
+				       	       VD_BATTERY_VOLTAGE - uvlo2_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
+			return -ENODEV;
+		}
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
+		ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
+				       	       VD_BATTERY_VOLTAGE - uvlo1_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop1_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: UVLO1\n");
+			return -ENODEV;
+		}
+		ret = google_bcl_register_zone(bcl_dev, BATOILO1, "batoilo", bcl_dev->vdroop2_pin,
+				       	       batoilo_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: BATOILO\n");
+			return -ENODEV;
+		}
 		ret = google_bcl_register_zone(bcl_dev, BATOILO2, "batoilo2", bcl_dev->vdroop2_pin,
 					       batoilo2_lvl - THERMAL_HYST_LEVEL,
 					       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
@@ -1274,7 +1262,7 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		}
 		/* Setup mitigation IRQ */
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
-		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0xAF);
+		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0xDF);
 		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 		                                      MAX77779_PMIC_INTB_MASK, &retval);
 		val = 0;
@@ -1313,11 +1301,11 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_3, val);
 
-		/* BATOILO2 no VDROOP1/2, 12ms BATOILO2 BAT_OPEN */
+		/* BATOILO2 = VDROOP1/2, 12ms BATOILO2 BAT_OPEN */
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_3, &val);
 		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val, 0);
-		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 0);
+		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 1);
 		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_bat_open_to);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
@@ -1352,9 +1340,9 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_2, &val);
 		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_rel_set(
-						 val, bcl_dev->batt_irq_conf1.batoilo_rel);
+						 val, bcl_dev->batt_irq_conf1.batoilo_int_rel);
 		val = _max77779_bat_oilo1_cnfg_2_bat_oilo1_int_det_set(
-						 val, bcl_dev->batt_irq_conf1.batoilo_det);
+						 val, bcl_dev->batt_irq_conf1.batoilo_int_det);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO1_CNFG_2, val);
 
@@ -1371,9 +1359,9 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_2, &val);
 		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_rel_set(
-						 val, bcl_dev->batt_irq_conf2.batoilo_rel);
+						 val, bcl_dev->batt_irq_conf2.batoilo_int_rel);
 		val = _max77779_bat_oilo2_cnfg_2_bat_oilo2_int_det_set(
-						 val, bcl_dev->batt_irq_conf2.batoilo_det);
+						 val, bcl_dev->batt_irq_conf2.batoilo_int_det);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_BAT_OILO2_CNFG_2, val);
 
@@ -1488,10 +1476,18 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		bcl_dev->batt_irq_conf1.batoilo_rel = ret ? BO_INT_REL_DEFAULT : retval;
 		ret = of_property_read_u32(np, "batoilo2_rel", &retval);
 		bcl_dev->batt_irq_conf2.batoilo_rel = ret ? BO_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo_int_rel", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_int_rel = ret ? BO_INT_REL_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo2_int_rel", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_int_rel = ret ? BO_INT_REL_DEFAULT : retval;
 		ret = of_property_read_u32(np, "batoilo_det", &retval);
 		bcl_dev->batt_irq_conf1.batoilo_det = ret ? BO_INT_DET_DEFAULT : retval;
 		ret = of_property_read_u32(np, "batoilo2_det", &retval);
 		bcl_dev->batt_irq_conf2.batoilo_det = ret ? BO_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo_int_det", &retval);
+		bcl_dev->batt_irq_conf1.batoilo_int_det = ret ? BO_INT_DET_DEFAULT : retval;
+		ret = of_property_read_u32(np, "batoilo2_int_det", &retval);
+		bcl_dev->batt_irq_conf2.batoilo_int_det = ret ? BO_INT_DET_DEFAULT : retval;
 		ret = of_property_read_u32(np, "uvlo1_det", &retval);
 		bcl_dev->batt_irq_conf1.uvlo_det = ret ? UV_INT_REL_DEFAULT : retval;
 		ret = of_property_read_u32(np, "uvlo2_det", &retval);
