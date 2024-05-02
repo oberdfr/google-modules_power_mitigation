@@ -79,6 +79,7 @@ void pwrwarn_update_start_time(struct bcl_device *bcl_dev,
 void pwrwarn_update_end_time(struct bcl_device *bcl_dev, int id,
 				struct irq_duration_stats *bins,
 				enum CONCURRENT_PWRWARN_IRQ bin_ind);
+void trace_bcl_zone_stats(struct bcl_zone *zone, int value);
 
 static int zone_read_temp(struct thermal_zone_device *tz, int *val)
 {
@@ -337,6 +338,7 @@ static void google_warn_work(struct work_struct *work)
 #endif
 		complete(&zone->deassert);
 		google_bcl_release_throttling(zone);
+		trace_bcl_zone_stats(zone, 0);
 	} else {
 		zone->bcl_cur_lvl = zone->bcl_lvl + THERMAL_HYST_LEVEL;
 		/* ODPM Read to kick off LIGHT module throttling */
@@ -726,6 +728,7 @@ static void google_irq_untriggered_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	google_bcl_upstream_state(zone, START);
 #endif
+	trace_bcl_zone_stats(zone, 1);
 	google_bcl_release_throttling(zone);
 }
 
