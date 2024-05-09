@@ -76,18 +76,34 @@ properties:
     $ref: /schemas/types.yaml#/definitions/int32
 
   batoilo_rel:
-    description: BATOILO release timer
+    description: BATOILO VDROOP release timer
     $ref: /schemas/types.yaml#/definitions/uint32
 
   batoilo2_rel:
+    description: BATOILO2 VDROOP release timer
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  batoilo_int_rel:
+    description: BATOILO release timer
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  batoilo2_int_rel:
     description: BATOILO2 release timer
     $ref: /schemas/types.yaml#/definitions/uint32
 
   batoilo_det:
-    description: BATOILO detect deglitch timer
+    description: BATOILO VDROOP detect deglitch timer
     $ref: /schemas/types.yaml#/definitions/uint32
 
   batoilo2_det:
+    description: BATOILO2 VDROOP detect deglitch timer
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  batoilo_int_det:
+    description: BATOILO detect deglitch timer
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  batoilo2_int_det:
     description: BATOILO2 detect deglitch timer
     $ref: /schemas/types.yaml#/definitions/uint32
 
