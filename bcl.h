@@ -60,6 +60,11 @@
 #define PWRWARN_THRESH_RFFE_MMWAVE             0x3C
 #define PWRWARN_LPF_RFFE_MMWAVE_MSB_MASK       0x0F
 #define PWRWARN_LPF_RFFE_MMWAVE_RSHIFT         4
+#define DEFAULT_SYS_UVLO1_LVL 0xC /* 3.2V */
+#define DEFAULT_SYS_UVLO2_LVL 0x2 /* 2.7V */
+#define DEFAULT_VDROOP_INT_MASK 0xDF /* Only BATOILO is passed */
+#define DEFAULT_INTB_MASK 0x0 /* All IRQs are passed */
+#define DEFAULT_SMPL 0xCB /* 3.2V, 200mV HYS, 38us debounce */
 
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
@@ -404,6 +409,20 @@ struct bcl_device {
 	bool rffe_mitigation_enable;
 
 	struct bcl_vimon_intf vimon_intf;
+
+	u8 vdroop_int_mask;
+	u8 intb_int_mask;
+	u8 uvlo2_lvl;
+	u8 uvlo1_lvl;
+	u8 smpl_ctrl;
+	bool uvlo2_vdrp2_en;
+	bool uvlo2_vdrp1_en;
+	bool uvlo1_vdrp1_en;
+	bool uvlo1_vdrp2_en;
+	bool oilo1_vdrp1_en;
+	bool oilo1_vdrp2_en;
+	bool oilo2_vdrp1_en;
+	bool oilo2_vdrp2_en;
 };
 
 extern void google_bcl_irq_update_lvl(struct bcl_device *bcl_dev, int index, unsigned int lvl);

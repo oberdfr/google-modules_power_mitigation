@@ -1262,12 +1262,20 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 			dev_err(bcl_dev->device, "bcl_register fail: BATOILO2\n");
 			return -ENODEV;
 		}
+		ret = google_bcl_register_zone(bcl_dev, UVLO2, "vdroop2", bcl_dev->vdroop2_pin,
+				       	       VD_BATTERY_VOLTAGE - uvlo2_lvl - THERMAL_HYST_LEVEL,
+				       	       gpio_to_irq(bcl_dev->vdroop2_pin), IF_PMIC, true);
+		if (ret < 0) {
+			dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
+			return -ENODEV;
+		}
 		/* Setup mitigation IRQ */
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
-		                                       MAX77779_PMIC_VDROOP_INT_MASK, 0xDF);
+		                                       MAX77779_PMIC_VDROOP_INT_MASK,
+		                                       bcl_dev->vdroop_int_mask);
 		ret = max77779_external_pmic_reg_read(bcl_dev->irq_pmic_dev,
 		                                      MAX77779_PMIC_INTB_MASK, &retval);
-		val = 0;
+		val = bcl_dev->intb_int_mask;
 		retval = _max77779_pmic_intb_mask_vdroop_int_m_set(retval, val);
 		ret = max77779_external_pmic_reg_write(bcl_dev->irq_pmic_dev,
 		                                       MAX77779_PMIC_INTB_MASK, retval);
@@ -1275,29 +1283,34 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		/* UVLO2 no VDROOP2 */
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO2_CNFG_1, &val);
-		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val, 0);
+		val = _max77779_sys_uvlo2_cnfg_1_sys_uvlo2_vdrp2_en_set(val,
+									bcl_dev->uvlo2_vdrp2_en);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 						      MAX77779_SYS_UVLO2_CNFG_1, val);
-		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, 0xc);
+		val = _max77779_sys_uvlo2_cnfg_0_sys_uvlo2_set(val, bcl_dev->uvlo2_lvl);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO2_CNFG_0, val);
 		/* UVLO1 = VDROOP1, 3.1V */
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO1_CNFG_1, &val);
-		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val, 1);
+		val = _max77779_sys_uvlo1_cnfg_1_sys_uvlo1_vdrp1_en_set(val,
+									bcl_dev->uvlo1_vdrp1_en);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO1_CNFG_1, val);
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_SYS_UVLO1_CNFG_0, &val);
-		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val, 0xa);
+		val = _max77779_sys_uvlo1_cnfg_0_sys_uvlo1_set(val,
+							       bcl_dev->uvlo1_lvl);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
 		                                      MAX77779_SYS_UVLO1_CNFG_0, val);
 
 		/* BATOILO1 = VDROOP2, 36ms BATOILO1 BAT_OPEN */
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO1_CNFG_3, &val);
-		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val, 0);
-		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val, 1);
+		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp1_en_set(val,
+									bcl_dev->oilo1_vdrp1_en);
+		val = _max77779_bat_oilo1_cnfg_3_bat_oilo1_vdrp2_en_set(val,
+									bcl_dev->oilo1_vdrp2_en);
 		val = _max77779_bat_oilo1_cnfg_3_bat_open_to_1_set(
 						 val, bcl_dev->batt_irq_conf1.batoilo_bat_open_to);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
@@ -1306,8 +1319,10 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		/* BATOILO2 = VDROOP1/2, 12ms BATOILO2 BAT_OPEN */
 		ret = max77779_external_chg_reg_read(bcl_dev->intf_pmic_dev,
 						     MAX77779_BAT_OILO2_CNFG_3, &val);
-		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val, 0);
-		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val, 1);
+		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp1_en_set(val,
+									bcl_dev->oilo2_vdrp1_en);
+		val = _max77779_bat_oilo2_cnfg_3_bat_oilo2_vdrp2_en_set(val,
+									bcl_dev->oilo2_vdrp2_en);
 		val = _max77779_bat_oilo2_cnfg_3_bat_open_to_2_set(
 						 val, bcl_dev->batt_irq_conf2.batoilo_bat_open_to);
 		ret = max77779_external_chg_reg_write(bcl_dev->intf_pmic_dev,
@@ -1502,6 +1517,22 @@ static int google_set_intf_pmic(struct bcl_device *bcl_dev, struct platform_devi
 		bcl_dev->evt_cnt.enable = ret ? EVT_CNT_ENABLE_DEFAULT : retval;
 		ret = of_property_read_u32(np, "evt_cnt_rate", &retval);
 		bcl_dev->evt_cnt.rate = ret ? EVT_CNT_RATE_DEFAULT : retval;
+		bcl_dev->uvlo1_vdrp1_en = of_property_read_bool(np, "uvlo1_vdrp1_en");
+		bcl_dev->uvlo1_vdrp2_en = of_property_read_bool(np, "uvlo1_vdrp2_en");
+		bcl_dev->uvlo2_vdrp1_en = of_property_read_bool(np, "uvlo2_vdrp1_en");
+		bcl_dev->uvlo2_vdrp2_en = of_property_read_bool(np, "uvlo2_vdrp2_en");
+		bcl_dev->oilo1_vdrp1_en = of_property_read_bool(np, "oilo1_vdrp1_en");
+		bcl_dev->oilo1_vdrp2_en = of_property_read_bool(np, "oilo1_vdrp2_en");
+		bcl_dev->oilo2_vdrp1_en = of_property_read_bool(np, "oilo2_vdrp1_en");
+		bcl_dev->oilo2_vdrp2_en = of_property_read_bool(np, "oilo2_vdrp2_en");
+		ret = of_property_read_u32(np, "uvlo1_lvl", &retval);
+		bcl_dev->uvlo1_lvl = ret ? DEFAULT_SYS_UVLO1_LVL : retval;
+		ret = of_property_read_u32(np, "uvlo2_lvl", &retval);
+		bcl_dev->uvlo2_lvl = ret ? DEFAULT_SYS_UVLO2_LVL : retval;
+		ret = of_property_read_u32(np, "vdroop_int_mask", &retval);
+		bcl_dev->vdroop_int_mask = ret ? DEFAULT_VDROOP_INT_MASK : retval;
+		ret = of_property_read_u32(np, "intb_int_mask", &retval);
+		bcl_dev->intb_int_mask = ret ? DEFAULT_INTB_MASK : retval;
 	}
 
 	if (bcl_dev->ifpmic == MAX77779) {
@@ -1777,7 +1808,7 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 	pmic_write(CORE_PMIC_MAIN, bcl_dev, MAIN_PWRONSRC, 0);
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	/* SMPL_WARN = 3.0V */
-	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_SMPL_WARN_CTRL, 0x8b);
+	pmic_write(CORE_PMIC_MAIN, bcl_dev, S2MPG14_PM_SMPL_WARN_CTRL, bcl_dev->smpl_ctrl);
 #endif
 
 	ret = google_bcl_register_zones_main_common(bcl_dev, pdata_main);
@@ -2066,6 +2097,8 @@ static void google_bcl_parse_clk_div_dtree(struct bcl_device *bcl_dev)
 	bcl_dev->cpu1_cluster = ret ? CPU1_CLUSTER_MIN : val;
 	ret = of_property_read_u32(np, "cpu2_cluster", &val);
 	bcl_dev->cpu2_cluster = ret ? CPU2_CLUSTER_MIN : val;
+	ret = of_property_read_u32(np, "smpl_ctrl", &val);
+	bcl_dev->smpl_ctrl = ret ? DEFAULT_SMPL : val;
 }
 
 static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
