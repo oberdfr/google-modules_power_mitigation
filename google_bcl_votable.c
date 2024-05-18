@@ -32,6 +32,8 @@ static int google_bcl_wlc_votable_callback(struct gvotable_election *el,
 	int ret;
 	u8 wlc_tx_enable = (long)value ? WLC_ENABLED_TX : WLC_DISABLED_TX;
 
+	if (!smp_load_acquire(&bcl_dev->enabled))
+		return -EINVAL;
 
 	if (bcl_dev->ifpmic == MAX77779) {
 		ret = max77779_adjust_batoilo_lvl(bcl_dev, wlc_tx_enable,
@@ -54,6 +56,8 @@ static int google_bcl_usb_votable_callback(struct gvotable_election *el,
 	struct bcl_device *bcl_dev = gvotable_get_data(el);
 	u8 usb_enable = (long)value ? USB_PLUGGED: USB_UNPLUGGED;
 
+	if (!smp_load_acquire(&bcl_dev->enabled))
+		return -EINVAL;
 	if (bcl_dev->ifpmic == MAX77779) {
 		ret = max77779_adjust_batoilo_lvl(bcl_dev, usb_enable,
 	                                  	  bcl_dev->batt_irq_conf1.batoilo_usb_trig_lvl,
@@ -84,6 +88,7 @@ int google_bcl_setup_votable(struct bcl_device *bcl_dev)
 							    bcl_dev);
 	if (IS_ERR_OR_NULL(bcl_dev->toggle_usb)) {
 		ret = PTR_ERR(bcl_dev->toggle_usb);
+		gvotable_destroy_election(bcl_dev->toggle_wlc);
 		dev_err(bcl_dev->device, "no toggle_usb votable (%d)\n", ret);
 		return ret;
 	}

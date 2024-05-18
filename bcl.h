@@ -18,6 +18,7 @@
 #elif IS_ENABLED(CONFIG_SOC_GS201)
 #include <dt-bindings/soc/google/gs201-bcl.h>
 #endif
+#include <trace/events/power.h>
 #include "uapi/brownout_stats.h"
 
 #if IS_ENABLED(CONFIG_SOC_GS101)
@@ -192,7 +193,6 @@ struct qos_throttle_limit {
 	int cpu2_limit;
 	int gpu_limit;
 	int tpu_limit;
-	bool throttle;
 };
 
 struct zone_triggered_stats {
@@ -205,7 +205,7 @@ struct bcl_zone {
 	struct completion deassert;
 	struct work_struct irq_triggered_work;
 	struct work_struct irq_untriggered_work;
-	struct work_struct warn_work;
+	struct delayed_work warn_work;
 	struct delayed_work enable_irq_work;
 	struct thermal_zone_device *tz;
 	struct thermal_zone_device_ops tz_ops;
@@ -307,8 +307,10 @@ struct bcl_device {
 	struct notifier_block psy_nb;
 	struct bcl_zone *zone[TRIGGERED_SOURCE_MAX];
 	struct delayed_work soc_work;
+	struct workqueue_struct *qos_update_wq;
 	struct thermal_zone_device *soc_tz;
 	struct thermal_zone_device_ops soc_tz_ops;
+	bool throttle;
 
 	int trip_high_temp;
 	int trip_low_temp;
@@ -325,6 +327,7 @@ struct bcl_device {
 	struct device *vimon_dev;
 
 	struct mutex cpu_ratio_lock;
+	struct mutex qos_update_lock;
 	struct bcl_core_conf core_conf[SUBSYSTEM_SOURCE_MAX];
 	struct bcl_cpu_buff_conf cpu_buff_conf[CPU_CLUSTER_MAX];
 	struct notifier_block cpu_nb;
