@@ -777,6 +777,9 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	atomic_set(&zone->last_triggered.triggered_cnt[LIGHT], 0);
 	atomic_set(&zone->last_triggered.triggered_cnt[MEDIUM], 0);
 	atomic_set(&zone->last_triggered.triggered_cnt[HEAVY], 0);
+	INIT_WORK(&zone->irq_triggered_work, google_irq_triggered_work);
+	INIT_WORK(&zone->warn_work, google_warn_work);
+	INIT_WORK(&zone->irq_untriggered_work, google_irq_untriggered_work);
 	if (idx == SMPL_WARN) {
 		latched_intr_flag = IRQF_TRIGGER_FALLING;
 		deassert_intr_flag = IRQF_TRIGGER_RISING;
@@ -792,6 +795,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	if ((bcl_dev->ifpmic == MAX77779) && (idx == BATOILO)) {
 		zone->bcl_pin = NOT_USED;
 		if (!zone->irq_reg) {
+			disable_irq_nosync(bcl_dev->pmic_irq);
 			ret = devm_request_threaded_irq(bcl_dev->device, bcl_dev->pmic_irq, NULL,
 							vdroop_irq_thread_fn,
 							IRQF_TRIGGER_FALLING | IRQF_SHARED |
@@ -803,6 +807,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 				devm_kfree(bcl_dev->device, zone);
 				return ret;
 			}
+			zone->bcl_irq = bcl_dev->pmic_irq;
 			zone->irq_reg = true;
 			to_conf = false;
 		}
@@ -810,6 +815,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO))
 		to_conf = false;
 	if (to_conf) {
+		disable_irq_nosync(zone->bcl_irq);
 		irqdata = irq_get_irq_data((unsigned int)irq);
 		irqd_set_trigger_type(irqdata, latched_intr_flag);
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
@@ -833,11 +839,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 			return ret;
 		}
 		zone->irq_reg = true;
-		disable_irq(zone->bcl_irq);
 	}
-	INIT_WORK(&zone->irq_triggered_work, google_irq_triggered_work);
-	INIT_WORK(&zone->warn_work, google_warn_work);
-	INIT_WORK(&zone->irq_untriggered_work, google_irq_untriggered_work);
 	if (!register_thermal)
 		goto register_done;
 	zone->tz_ops.get_temp = zone_read_temp;
@@ -1890,6 +1892,7 @@ static int google_bcl_init_instruction(struct bcl_device *bcl_dev)
 
 	mutex_init(&bcl_dev->sysreg_lock);
 	mutex_init(&bcl_dev->cpu_ratio_lock);
+	google_bcl_enable_vdroop_irq(bcl_dev);
 
 	bcl_dev->base_add_mem[SUBSYSTEM_CPU0] = devm_ioremap(bcl_dev->device, ADD_CPUCL0, SZ_128);
 	if (!bcl_dev->base_add_mem[SUBSYSTEM_CPU0]) {
@@ -1967,24 +1970,21 @@ u64 settings_to_current(struct bcl_device *bcl_dev, int pmic, int idx, u32 setti
         return 0;
 }
 
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 static void irq_config(struct bcl_zone *zone, bool enabled)
 {
 	if (!zone)
 		return;
 	if (!enabled && !zone->disabled) {
 		zone->disabled = true;
-		disable_irq(zone->bcl_irq);
+		disable_irq_nosync(zone->bcl_irq);
 	} else if (enabled && zone->disabled) {
 		zone->disabled = false;
 		enable_irq(zone->bcl_irq);
 	}
 }
-#endif
 
 static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 {
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	struct device_node *np = bcl_dev->device->of_node;
 	struct device_node *child;
         /* irq config */
@@ -2009,7 +2009,6 @@ static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 	irq_config(bcl_dev->zone[SOFT_OCP_WARN_GPU],
 		   of_property_read_bool(child, "irq,soft_ocp_gpu"));
 
-#endif
 }
 
 static void google_bcl_clk_div(struct bcl_device *bcl_dev)
@@ -2284,7 +2283,6 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto debug_init_fs;
 	google_bcl_clk_div(bcl_dev);
-	google_bcl_enable_vdroop_irq(bcl_dev);
 	google_bcl_parse_irq_config(bcl_dev);
 
 	smp_store_release(&bcl_dev->enabled, true);
