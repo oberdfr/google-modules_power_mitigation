@@ -204,7 +204,6 @@ struct bcl_zone {
 	struct device *device;
 	struct completion deassert;
 	struct work_struct irq_triggered_work;
-	struct work_struct irq_untriggered_work;
 	struct delayed_work warn_work;
 	struct delayed_work enable_irq_work;
 	struct thermal_zone_device *tz;
