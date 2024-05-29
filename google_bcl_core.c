@@ -211,7 +211,6 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 	struct bcl_zone *zone = data;
 	struct bcl_device *bcl_dev;
 	u8 idx;
-	u8 irq_val = 0;
 
 	if (!zone || !zone->parent)
 		return IRQ_HANDLED;
@@ -223,33 +222,7 @@ static irqreturn_t latched_irq_handler(int irq, void *data)
 			bcl_cb_clr_irq(bcl_dev, idx);
 		return IRQ_HANDLED;
 	}
-	if (gpio_get_value(zone->bcl_pin) == zone->polarity) {
-		/* Latched */
-		if (idx >= UVLO1 && idx <= BATOILO2) {
-			atomic_inc(&zone->last_triggered.triggered_cnt[START]);
-			zone->last_triggered.triggered_time[START] = ktime_to_ms(ktime_get());
-		}
-		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
-			bcl_cb_get_irq(bcl_dev, &irq_val);
-			if (irq_val == 0)
-				goto exit;
-			idx = irq_val;
-			zone = bcl_dev->zone[idx];
-		}
-		if (zone->irq_type == IF_PMIC)
-			bcl_cb_clr_irq(bcl_dev, idx);
-		queue_work(system_unbound_wq, &zone->irq_triggered_work);
-	} else {
-		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
-			bcl_cb_get_irq(bcl_dev, &irq_val);
-			if (irq_val == 0)
-				goto exit;
-			idx = irq_val;
-			zone = bcl_dev->zone[idx];
-		}
-		queue_work(system_unbound_wq, &zone->irq_untriggered_work);
-	}
-exit:
+	queue_work(system_unbound_wq, &zone->irq_triggered_work);
 	return IRQ_HANDLED;
 }
 
@@ -451,8 +424,6 @@ static int google_bcl_remove_thermal(struct bcl_device *bcl_dev)
 		zone->irq_reg = false;
 		if (zone->tz)
 			devm_thermal_of_zone_unregister(bcl_dev->device, zone->tz);
-		if (zone->irq_untriggered_work.func != NULL)
-			cancel_work_sync(&zone->irq_untriggered_work);
 		if (zone->irq_triggered_work.func != NULL)
 			cancel_work_sync(&zone->irq_triggered_work);
 		if (zone->warn_work.work.func != NULL)
@@ -521,8 +492,6 @@ EXPORT_SYMBOL_GPL(google_retrieve_bcl_handle);
 static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
 {
 	void __iomem *addr;
-	struct bcl_zone *zone;
-	int i;
 
 	if (IS_ERR_OR_NULL(data->device))
 		return -EIO;
@@ -550,12 +519,6 @@ static int google_init_ratio(struct bcl_device *data, enum SUBSYSTEM_SOURCE idx)
 	__raw_writel(data->core_conf[idx].clk_out, addr);
 	data->core_conf[idx].clk_stats = __raw_readl(data->core_conf[idx].base_mem +
 						     clk_stats_offset[idx]);
-	for (i = 0; i < TRIGGERED_SOURCE_MAX; i++) {
-		zone = data->zone[i];
-		if (!zone || !zone->bcl_qos)
-			continue;
-		google_bcl_qos_update(zone, false);
-	}
 
 	return 0;
 }
@@ -651,9 +614,35 @@ static void google_irq_triggered_work(struct work_struct *work)
 {
 	struct bcl_zone *zone = container_of(work, struct bcl_zone, irq_triggered_work);
 	struct bcl_device *bcl_dev;
+	u8 irq_val = 0;
 	int idx;
 
+	idx = zone->idx;
 	bcl_dev = zone->parent;
+	if (zone->bcl_pin != NOT_USED) {
+		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
+			bcl_cb_get_irq(bcl_dev, &irq_val);
+			if (irq_val == 0)
+				return;
+			idx = irq_val;
+			zone = bcl_dev->zone[idx];
+		}
+		if (gpio_get_value(zone->bcl_pin) == zone->polarity) {
+			if (idx >= UVLO1 && idx <= BATOILO2) {
+				atomic_inc(&zone->last_triggered.triggered_cnt[START]);
+				zone->last_triggered.triggered_time[START] =
+						ktime_to_ms(ktime_get());
+			}
+			if (zone->irq_type == IF_PMIC)
+				bcl_cb_clr_irq(bcl_dev, idx);
+		} else {
+#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
+			google_bcl_upstream_state(zone, START);
+#endif
+			google_bcl_release_throttling(zone);
+			return;
+		}
+	}
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	if (zone->bcl_qos)
 		google_bcl_qos_update(zone, true);
@@ -694,22 +683,6 @@ static void google_irq_triggered_work(struct work_struct *work)
 	/* We most likely have to shutdown after this */
 	/* HEAVY phase */
 	/* IRQ deasserted */
-}
-
-static void google_irq_untriggered_work(struct work_struct *work)
-{
-	struct bcl_zone *zone = container_of(work, struct bcl_zone, irq_untriggered_work);
-	struct bcl_device *bcl_dev;
-
-	if (!zone || !zone->parent)
-		return;
-
-	bcl_dev = zone->parent;
-
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
-	google_bcl_upstream_state(zone, START);
-#endif
-	google_bcl_release_throttling(zone);
 }
 
 static irqreturn_t vdroop_irq_thread_fn(int irq, void *data)
@@ -767,7 +740,6 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	atomic_set(&zone->last_triggered.triggered_cnt[HEAVY], 0);
 	INIT_WORK(&zone->irq_triggered_work, google_irq_triggered_work);
 	INIT_DELAYED_WORK(&zone->warn_work, google_warn_work);
-	INIT_WORK(&zone->irq_untriggered_work, google_irq_untriggered_work);
 	if (idx == SMPL_WARN) {
 		latched_intr_flag = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 		zone->polarity = 0;
