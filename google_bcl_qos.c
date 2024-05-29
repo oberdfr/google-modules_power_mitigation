@@ -20,13 +20,32 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/bcl_exynos.h>
 
+static void trace_qos(bool throttle, const char *devname)
+{
+#if IS_ENABLED(CONFIG_SOC_ZUMA)
+	char buf[64];
+	if (!trace_clock_set_rate_enabled())
+		return;
+	snprintf(buf, sizeof(buf), "BCL_ZONE_%s_QOS", devname);
+	trace_clock_set_rate(buf, throttle ? 1 : 0, raw_smp_processor_id());
+#endif
+}
+
 void google_bcl_qos_update(struct bcl_zone *zone, bool throttle)
 {
 	struct bcl_device *bcl_dev;
 	if (!zone->bcl_qos)
 		return;
-	zone->bcl_qos->throttle = throttle;
 	bcl_dev = zone->parent;
+
+	mutex_lock(&bcl_dev->qos_update_lock);
+	if (bcl_dev->throttle && throttle) {
+		mutex_unlock(&bcl_dev->qos_update_lock);
+		return;
+	}
+	if (throttle)
+		bcl_dev->throttle = true;
+
 	if (bcl_dev->cpu0_cluster_on)
 		freq_qos_update_request(&zone->bcl_qos->cpu0_max_qos_req,
 					throttle ? zone->bcl_qos->cpu0_limit : INT_MAX);
@@ -36,16 +55,23 @@ void google_bcl_qos_update(struct bcl_zone *zone, bool throttle)
 	if (bcl_dev->cpu2_cluster_on)
 		freq_qos_update_request(&zone->bcl_qos->cpu2_max_qos_req,
 					throttle ? zone->bcl_qos->cpu2_limit : INT_MAX);
-	exynos_pm_qos_update_request(&zone->bcl_qos->tpu_qos_max,
-				     throttle ? zone->bcl_qos->tpu_limit : INT_MAX);
-	exynos_pm_qos_update_request(&zone->bcl_qos->gpu_qos_max,
-				     throttle ? zone->bcl_qos->gpu_limit : INT_MAX);
+
+	exynos_pm_qos_update_request_async(&zone->bcl_qos->tpu_qos_max,
+					   throttle ? zone->bcl_qos->tpu_limit : INT_MAX);
+	exynos_pm_qos_update_request_async(&zone->bcl_qos->gpu_qos_max,
+					   throttle ? zone->bcl_qos->gpu_limit : INT_MAX);
+
+	if (!throttle)
+		bcl_dev->throttle = false;
+	mutex_unlock(&bcl_dev->qos_update_lock);
+
 	trace_bcl_irq_trigger(zone->idx, throttle, throttle ? zone->bcl_qos->cpu0_limit : INT_MAX,
 	                      throttle ? zone->bcl_qos->cpu1_limit : INT_MAX,
 	                      throttle ? zone->bcl_qos->cpu2_limit : INT_MAX,
 	                      throttle ? zone->bcl_qos->tpu_limit : INT_MAX,
 	                      throttle ? zone->bcl_qos->gpu_limit : INT_MAX,
 	                      zone->bcl_stats.voltage, zone->bcl_stats.capacity);
+	trace_qos(throttle, zone->devname);
 }
 
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
@@ -120,6 +146,7 @@ int google_bcl_setup_qos(struct bcl_device *bcl_dev)
 				  	  INT_MAX);
 		zone->conf_qos = true;
 	}
+	mutex_init(&bcl_dev->qos_update_lock);
 	return 0;
 fail:
 	google_bcl_remove_qos(bcl_dev);
@@ -150,5 +177,6 @@ void google_bcl_remove_qos(struct bcl_device *bcl_dev)
 			zone->conf_qos = false;
 		}
 	}
+	mutex_destroy(&bcl_dev->qos_update_lock);
 #endif
 }
