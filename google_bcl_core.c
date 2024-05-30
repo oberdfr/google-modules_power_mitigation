@@ -1941,7 +1941,7 @@ static void irq_config(struct bcl_zone *zone, bool enabled)
 	if (!enabled && !zone->disabled) {
 		zone->disabled = true;
 		disable_irq_nosync(zone->bcl_irq);
-	} else if (enabled && zone->disabled) {
+	} else if (enabled && zone->disabled && zone->irq_reg) {
 		zone->disabled = false;
 		if (zone->bcl_pin != NOT_USED)
 			enable_irq(zone->bcl_irq);
@@ -1958,9 +1958,10 @@ static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 		return;
 	irq_config(bcl_dev->zone[UVLO1], of_property_read_bool(child, "irq,uvlo1"));
 	/* This enables BATOILO2 as well */
-	irq_config(bcl_dev->zone[UVLO2], of_property_read_bool(child, "irq,uvlo2"));
-	irq_config(bcl_dev->zone[BATOILO], of_property_read_bool(child, "irq,batoilo"));
 	irq_config(bcl_dev->zone[SMPL_WARN], of_property_read_bool(child, "irq,smpl_warn"));
+	if (bcl_dev->ifpmic == MAX77779)
+		return;
+	irq_config(bcl_dev->zone[BATOILO], of_property_read_bool(child, "irq,batoilo"));
 	irq_config(bcl_dev->zone[OCP_WARN_CPUCL1], of_property_read_bool(child, "irq,ocp_cpu1"));
 	irq_config(bcl_dev->zone[OCP_WARN_CPUCL2], of_property_read_bool(child, "irq,ocp_cpu2"));
 	irq_config(bcl_dev->zone[OCP_WARN_TPU], of_property_read_bool(child, "irq,ocp_tpu"));
