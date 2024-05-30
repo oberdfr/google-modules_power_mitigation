@@ -770,7 +770,6 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 	if ((bcl_dev->ifpmic == MAX77759) && (idx == BATOILO))
 		to_conf = false;
 	if (to_conf) {
-		disable_irq_nosync(zone->bcl_irq);
 		ret = devm_request_threaded_irq(bcl_dev->device, zone->bcl_irq, NULL,
 						latched_irq_handler,
 						latched_intr_flag, devname, zone);
