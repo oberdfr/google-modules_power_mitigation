@@ -2208,35 +2208,45 @@ static void google_bcl_parse_dtree(struct bcl_device *bcl_dev)
 	}
 }
 
-static int google_bcl_configure_modem(struct bcl_device *bcl_dev)
+static int google_bcl_configure_gpio(struct bcl_device *bcl_dev)
 {
-	struct pinctrl *modem_pinctrl;
-	struct pinctrl_state *batoilo_pinctrl_state, *rffe_pinctrl_state;
+	struct pinctrl *bcl_pinctrl;
+	struct pinctrl_state *batoilo_pinctrl_state, *rffe_pinctrl_state, *s_ocp_tpu_pinctrl_state;
 	int ret;
 
-	modem_pinctrl = devm_pinctrl_get(bcl_dev->device);
-	if (IS_ERR_OR_NULL(modem_pinctrl)) {
-		dev_err(bcl_dev->device, "Cannot find modem_pinctrl!\n");
+	bcl_pinctrl = devm_pinctrl_get(bcl_dev->device);
+	if (IS_ERR_OR_NULL(bcl_pinctrl)) {
+		dev_err(bcl_dev->device, "Cannot find bcl_pinctrl!\n");
 		return -EINVAL;
 	}
-	batoilo_pinctrl_state = pinctrl_lookup_state(modem_pinctrl, "bcl-batoilo-modem");
+	batoilo_pinctrl_state = pinctrl_lookup_state(bcl_pinctrl, "bcl-batoilo-modem");
 	if (IS_ERR_OR_NULL(batoilo_pinctrl_state)) {
 		dev_err(bcl_dev->device, "batoilo: pinctrl lookup state failed!\n");
 		return -EINVAL;
 	}
-	rffe_pinctrl_state = pinctrl_lookup_state(modem_pinctrl, "bcl-rffe-modem");
+	rffe_pinctrl_state = pinctrl_lookup_state(bcl_pinctrl, "bcl-rffe-modem");
 	if (IS_ERR_OR_NULL(rffe_pinctrl_state)) {
 		dev_err(bcl_dev->device, "rffe: pinctrl lookup state failed!\n");
 		return -EINVAL;
 	}
-	ret = pinctrl_select_state(modem_pinctrl, batoilo_pinctrl_state);
+	s_ocp_tpu_pinctrl_state = pinctrl_lookup_state(bcl_pinctrl, "bcl-s-ocp-tpu");
+	if (IS_ERR_OR_NULL(s_ocp_tpu_pinctrl_state)) {
+		dev_err(bcl_dev->device, "tpu: pinctrl lookup state failed!\n");
+		return -EINVAL;
+	}
+	ret = pinctrl_select_state(bcl_pinctrl, batoilo_pinctrl_state);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "batoilo: pinctrl select state failed!!\n");
 		return -EINVAL;
 	}
-	ret = pinctrl_select_state(modem_pinctrl, rffe_pinctrl_state);
+	ret = pinctrl_select_state(bcl_pinctrl, rffe_pinctrl_state);
 	if (ret < 0) {
 		dev_err(bcl_dev->device, "rffe: pinctrl select state failed!!\n");
+		return -EINVAL;
+	}
+	ret = pinctrl_select_state(bcl_pinctrl, s_ocp_tpu_pinctrl_state);
+	if (ret < 0) {
+		dev_err(bcl_dev->device, "tpu: pinctrl select state failed!!\n");
 		return -EINVAL;
 	}
 	bcl_dev->config_modem = true;
@@ -2297,7 +2307,7 @@ static int google_bcl_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_SOC_ZUMAPRO)
 	google_bcl_parse_dtree(bcl_dev);
-	google_bcl_configure_modem(bcl_dev);
+	google_bcl_configure_gpio(bcl_dev);
 #endif
 
 	if (google_set_intf_pmic(bcl_dev, pdev) < 0)
