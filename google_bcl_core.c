@@ -764,6 +764,7 @@ static int google_bcl_register_zone(struct bcl_device *bcl_dev, int idx, const c
 			}
 			zone->bcl_irq = bcl_dev->pmic_irq;
 			zone->irq_reg = true;
+			zone->disabled = false;
 			to_conf = false;
 		}
 	}
@@ -1959,6 +1960,7 @@ static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 	irq_config(bcl_dev->zone[UVLO1], of_property_read_bool(child, "irq,uvlo1"));
 	/* This enables BATOILO2 as well */
 	irq_config(bcl_dev->zone[SMPL_WARN], of_property_read_bool(child, "irq,smpl_warn"));
+	irq_config(bcl_dev->zone[BATOILO2], of_property_read_bool(child, "irq,batoilo2"));
 	if (bcl_dev->ifpmic == MAX77779)
 		return;
 	irq_config(bcl_dev->zone[BATOILO], of_property_read_bool(child, "irq,batoilo"));
