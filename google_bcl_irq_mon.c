@@ -81,7 +81,9 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 				goto end_bin_incr_ifpmic;
 			scnprintf(buf, sizeof(buf), "BCL: %s ODPM pwr: %i, thresh: %i trig crash",
 				  pwrwarn == RFFE_BCL_BIN ? "RFFE" : "MMWAVE", odpm_pwr, thr);
+#if IS_ENABLED(CONFIG_EXYNOS_MODEM_IF)
 			modem_force_crash_exit_ext(buf);
+#endif
 			dev_err(bcl_dev->device, buf);
 		}
 	}
