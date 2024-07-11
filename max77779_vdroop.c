@@ -102,8 +102,7 @@ int max77779_clr_irq(struct bcl_device *bcl_dev, int idx)
 int max77779_vimon_read(struct bcl_device *bcl_dev)
 {
 	int ret = 0;
-
-#if IS_ENABLED(CONFIG_SOC_ZUMA)
+#if IS_ENABLED(CONFIG_SOC_ZUMAPRO)
 	ret = max77779_external_vimon_read_buffer(bcl_dev->vimon_dev, bcl_dev->vimon_intf.data,
 						  &bcl_dev->vimon_intf.count, VIMON_BUF_SIZE);
 	if (ret == 0)

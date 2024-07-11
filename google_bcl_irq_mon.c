@@ -51,9 +51,15 @@ static void bin_incr_ifpmic(struct bcl_device *bcl_dev, enum BCL_BATT_IRQ batt,
 		atomic_inc(&bcl_dev->ifpmic_irq_bins[batt][pwrwarn].bt_5ms_10ms_count);
 	else {
 		atomic_inc(&bcl_dev->ifpmic_irq_bins[batt][pwrwarn].gt_10ms_count);
+#if IS_ENABLED(CONFIG_SOC_ZUMAPRO)
 		if (bcl_dev->rffe_mitigation_enable &&
 		    (pwrwarn == RFFE_BCL_BIN || pwrwarn == MMWAVE_BCL_BIN) &&
 		    (batt == BATOILO_IRQ_BIN || batt == BATOILO2_IRQ_BIN)) {
+#else
+		if (bcl_dev->rffe_mitigation_enable &&
+		    (pwrwarn == RFFE_BCL_BIN || pwrwarn == MMWAVE_BCL_BIN) &&
+		    batt == BATOILO_IRQ_BIN) {
+#endif
 			pmic_sel = pwrwarn == RFFE_BCL_BIN ? CORE_PMIC_MAIN : CORE_PMIC_SUB;
 			if (meter_read(pmic_sel, bcl_dev, PWRWARN_LPF_RFFE_MMWAVE_DATA_0,
 				       &lsb)) {
