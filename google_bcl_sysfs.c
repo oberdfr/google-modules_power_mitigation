@@ -903,15 +903,6 @@ static ssize_t ready_show(struct device *dev, struct device_attribute *attr, cha
 }
 static DEVICE_ATTR_RO(ready);
 
-static ssize_t ifpmic_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
-	struct bcl_device *bcl_dev = platform_get_drvdata(pdev);
-
-	return sysfs_emit(buf, "%s\n", bcl_dev->ifpmic == MAX77779 ? "max77779" : "max77759");
-}
-static DEVICE_ATTR_RO(ifpmic);
-
 static struct attribute *instr_attrs[] = {
 	&dev_attr_mid_db_settings.attr,
 	&dev_attr_big_db_settings.attr,
@@ -933,7 +924,6 @@ static struct attribute *instr_attrs[] = {
 	&dev_attr_last_current.attr,
 	&dev_attr_vimon_buff.attr,
 	&dev_attr_ready.attr,
-	&dev_attr_ifpmic.attr,
 	NULL,
 };
 
@@ -4076,7 +4066,6 @@ static struct attribute *triggered_state_mw_attrs[] = {
 	NULL,
 };
 
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 static ssize_t triggered_idx_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
@@ -4103,7 +4092,7 @@ static ssize_t enable_br_stats_store(struct device *dev, struct device_attribute
 	bool value;
 	int ret;
 
-	if (bcl_dev->ifpmic != MAX77779 || !bcl_dev->data_logging_initialized)
+	if (!bcl_dev->data_logging_initialized)
 		return -EINVAL;
 
 	ret = kstrtobool(buf, &value);
@@ -4151,7 +4140,6 @@ static struct bin_attribute *br_stats_bin_attrs[] = {
 	&br_stats_dump_attr,
 	NULL,
 };
-#endif
 
 static const struct attribute_group irq_dur_cnt_group = {
 	.attrs = irq_dur_cnt_attrs,
@@ -4163,13 +4151,11 @@ static const struct attribute_group qos_group = {
 	.name = "qos",
 };
 
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 static const struct attribute_group br_stats_group = {
 	.attrs = br_stats_attrs,
 	.bin_attrs = br_stats_bin_attrs,
 	.name = "br_stats",
 };
-#endif
 
 static const struct attribute_group irq_config_group = {
 	.attrs = irq_config_attrs,
@@ -4206,9 +4192,7 @@ const struct attribute_group *mitigation_mw_groups[] = {
 	&sub_pwrwarn_group,
 	&irq_dur_cnt_group,
 	&qos_group,
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	&br_stats_group,
-#endif
 	&last_triggered_mode_group,
 	&irq_config_group,
 	&triggered_state_mw_group,
@@ -4230,9 +4214,7 @@ const struct attribute_group *mitigation_sq_groups[] = {
 	&sub_pwrwarn_group,
 	&irq_dur_cnt_group,
 	&qos_group,
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	&br_stats_group,
-#endif
 	&last_triggered_mode_group,
 	&irq_config_group,
 	&triggered_state_sq_group,

@@ -652,9 +652,9 @@ static void google_irq_triggered_work(struct work_struct *work)
 	idx = zone->idx;
 	bcl_dev = zone->parent;
 	trace_bcl_zone_stats(zone, 1);
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
+
 	google_bcl_start_data_logging(bcl_dev, idx);
-#endif
+
 	/* LIGHT phase */
 	if (google_bcl_wait_for_response_locked(zone, TIMEOUT_5MS) > 0)
 		return;
@@ -2240,13 +2240,11 @@ static int google_bcl_probe(struct platform_device *pdev)
 	if (google_set_intf_pmic(bcl_dev, pdev) < 0)
 		goto bcl_soc_probe_exit;
 	google_init_debugfs(bcl_dev);
-#if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	ret = google_bcl_init_data_logging(bcl_dev);
 	if (ret < 0)
 		goto bcl_soc_probe_exit;
 	/* br_stats no need to run without mitigation app */
 	bcl_dev->enabled_br_stats = false;
-#endif
 
 	bcl_dev->triggered_idx = TRIGGERED_SOURCE_MAX;
 
