@@ -4,8 +4,9 @@ subdir-ccflags-y += \
 		-I$(KERNEL_SRC)/../private/google-modules/bms
 
 ifneq ($(filter m, $(CONFIG_SOC_ZUMAPRO)),)
-ccflags-$(CONFIG_RADIO_S5300) += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5300
-ccflags-$(CONFIG_RADIO_S5400) += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5400
+# Only one of them exists at build time, depending on :radio flag.
+ccflags-y += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5300
+ccflags-y += -I$(KERNEL_SRC)/../private/google-modules/radio/samsung/s5400
 endif
 
 obj-$(CONFIG_GOOGLE_BCL) += google_bcl.o
