@@ -1181,6 +1181,10 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 			dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
 			return -ENODEV;
 		}
+
+		bcl_cb_clr_irq(bcl_dev, UVLO1);
+		bcl_cb_clr_irq(bcl_dev, UVLO2);
+		bcl_cb_clr_irq(bcl_dev, BATOILO1);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
 		ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
