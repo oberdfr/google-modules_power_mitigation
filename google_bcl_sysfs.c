@@ -4171,10 +4171,17 @@ static ssize_t trigger_br_stats_store(struct device *dev, struct device_attribut
 
 static DEVICE_ATTR_RW(trigger_br_stats);
 
+static ssize_t meter_channels_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n", METER_CHANNEL_MAX);
+}
+static DEVICE_ATTR_RO(meter_channels);
+
 static struct attribute *br_stats_attrs[] = {
 	&dev_attr_triggered_idx.attr,
 	&dev_attr_enable_br_stats.attr,
 	&dev_attr_trigger_br_stats.attr,
+	&dev_attr_meter_channels.attr,
 	NULL,
 };
 
