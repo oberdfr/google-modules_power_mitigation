@@ -1137,9 +1137,6 @@ static int google_set_sub_pmic(struct bcl_device *bcl_dev)
 		return -ENODEV;
 	}
 
-	INIT_DELAYED_WORK(&bcl_dev->setup_sub_odpm_work, google_bcl_setup_sub_odpm);
-	schedule_delayed_work(&bcl_dev->setup_sub_odpm_work, msecs_to_jiffies(TIMEOUT_5MS));
-
 	bcl_dev->sub_meter_i2c = sub_dev->meter;
 	bcl_dev->sub_irq_base = pdata_sub->irq_base;
 	bcl_dev->sub_pmic_i2c = sub_dev->pmic;
@@ -1162,6 +1159,9 @@ static int google_set_sub_pmic(struct bcl_device *bcl_dev)
 	ret = google_bcl_register_zones_sub(bcl_dev, pdata_sub);
 	if (ret < 0)
 		return ret;
+
+	INIT_DELAYED_WORK(&bcl_dev->setup_sub_odpm_work, google_bcl_setup_sub_odpm);
+	schedule_delayed_work(&bcl_dev->setup_sub_odpm_work, msecs_to_jiffies(TIMEOUT_5MS));
 
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	for (i = 0; i < S2MPG1415_METER_CHANNEL_MAX; i++) {
@@ -1814,9 +1814,6 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 		return -ENODEV;
 	}
 
-	INIT_DELAYED_WORK(&bcl_dev->setup_main_odpm_work, google_bcl_setup_main_odpm);
-	schedule_delayed_work(&bcl_dev->setup_main_odpm_work, msecs_to_jiffies(TIMEOUT_5MS));
-
 	bcl_dev->main_irq_base = pdata_main->irq_base;
 	bcl_dev->main_pmic_i2c = main_dev->pmic;
 	bcl_dev->main_meter_i2c = main_dev->meter;
@@ -1847,6 +1844,9 @@ static int google_set_main_pmic(struct bcl_device *bcl_dev)
 	ret = google_bcl_register_zones_main(bcl_dev, pdata_main);
 	if (ret < 0)
 		return ret;
+
+	INIT_DELAYED_WORK(&bcl_dev->setup_main_odpm_work, google_bcl_setup_main_odpm);
+	schedule_delayed_work(&bcl_dev->setup_main_odpm_work, msecs_to_jiffies(TIMEOUT_5MS));
 
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 	for (i = 0; i < S2MPG1415_METER_CHANNEL_MAX; i++) {
