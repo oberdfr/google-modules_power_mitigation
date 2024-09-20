@@ -635,14 +635,14 @@ static void google_irq_triggered_work(struct work_struct *work)
 			idx = irq_val;
 			zone = bcl_dev->zone[idx];
 		}
+		if (zone->irq_type == IF_PMIC)
+			bcl_cb_clr_irq(bcl_dev, idx);
 		if (gpio_get_value(zone->bcl_pin) == zone->polarity) {
 			if (idx >= UVLO1 && idx <= BATOILO2) {
 				atomic_inc(&zone->last_triggered.triggered_cnt[START]);
 				zone->last_triggered.triggered_time[START] =
 						ktime_to_ms(ktime_get());
 			}
-			if (zone->irq_type == IF_PMIC)
-				bcl_cb_clr_irq(bcl_dev, idx);
 		} else {
 			google_bcl_upstream_state(zone, START);
 			google_bcl_release_throttling(zone);
@@ -1280,6 +1280,9 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 		if (ret < 0)
 			return -EIO;
 #endif
+		bcl_cb_clr_irq(bcl_dev, UVLO1);
+		bcl_cb_clr_irq(bcl_dev, UVLO2);
+		bcl_cb_clr_irq(bcl_dev, BATOILO1);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
 		ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
@@ -2059,6 +2062,7 @@ static void google_bcl_parse_irq_config(struct bcl_device *bcl_dev)
 	if (!child)
 		return;
 	irq_config(bcl_dev->zone[UVLO1], of_property_read_bool(child, "irq,uvlo1"));
+	irq_config(bcl_dev->zone[UVLO2], of_property_read_bool(child, "irq,uvlo2"));
 	/* This enables BATOILO2 as well */
 	irq_config(bcl_dev->zone[SMPL_WARN], of_property_read_bool(child, "irq,smpl_warn"));
 	irq_config(bcl_dev->zone[BATOILO2], of_property_read_bool(child, "irq,batoilo2"));
