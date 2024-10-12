@@ -620,7 +620,7 @@ static void google_irq_triggered_work(struct work_struct *work)
 	idx = zone->idx;
 	bcl_dev = zone->parent;
 	if (zone->bcl_pin != NOT_USED) {
-		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO2 && idx <= BATOILO2) {
+		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO1 && idx <= BATOILO2) {
 			bcl_cb_get_irq(bcl_dev, &irq_val);
 			if (irq_val == 0)
 				return;
