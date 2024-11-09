@@ -43,12 +43,9 @@ int max77759_clr_irq(struct bcl_device *bcl_dev, int idx)
 	u8 chg_int = 0;
 	int ret;
 
-	if (idx == NOT_USED)
-		irq_val = idx;
-	else {
-		if (max77759_get_irq(bcl_dev, &irq_val) != 0)
-			return IRQ_NONE;
-	}
+	if (max77759_get_irq(bcl_dev, &irq_val) != 0)
+		return IRQ_NONE;
+
 	if (irq_val == UVLO2)
 		chg_int = MAX77759_CHG_INT2_SYS_UVLO2_I;
 	else if (irq_val == UVLO1)
@@ -60,6 +57,7 @@ int max77759_clr_irq(struct bcl_device *bcl_dev, int idx)
 		                          chg_int);
 	if (ret < 0)
 		return IRQ_NONE;
+
 	return ret;
 
 }

@@ -614,27 +614,17 @@ static void google_irq_triggered_work(struct work_struct *work)
 {
 	struct bcl_zone *zone = container_of(work, struct bcl_zone, irq_triggered_work);
 	struct bcl_device *bcl_dev;
-	u8 irq_val = 0;
 	int idx;
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
 	if (zone->bcl_pin != NOT_USED) {
-		if (bcl_dev->ifpmic == MAX77759 && idx >= UVLO1 && idx <= BATOILO2) {
-			bcl_cb_get_irq(bcl_dev, &irq_val);
-			if (irq_val == 0)
-				return;
-			idx = irq_val;
-			zone = bcl_dev->zone[idx];
-		}
 		if (gpio_get_value(zone->bcl_pin) == zone->polarity) {
 			if (idx >= UVLO1 && idx <= BATOILO2) {
 				atomic_inc(&zone->last_triggered.triggered_cnt[START]);
 				zone->last_triggered.triggered_time[START] =
 						ktime_to_ms(ktime_get());
 			}
-			if (zone->irq_type == IF_PMIC)
-				bcl_cb_clr_irq(bcl_dev, idx);
 		} else {
 #if IS_ENABLED(CONFIG_REGULATOR_S2MPG14)
 			google_bcl_upstream_state(zone, START);
@@ -648,6 +638,9 @@ static void google_irq_triggered_work(struct work_struct *work)
 		google_bcl_qos_update(zone, true);
 #endif
 	mod_delayed_work(bcl_dev->qos_update_wq, &zone->warn_work, msecs_to_jiffies(TIMEOUT_10MS));
+	if (bcl_dev->ifpmic == MAX77759 && zone->irq_type == IF_PMIC) {
+		bcl_cb_clr_irq(bcl_dev, idx);
+	}
 
 	idx = zone->idx;
 	bcl_dev = zone->parent;
@@ -1181,10 +1174,6 @@ static int intf_pmic_init(struct bcl_device *bcl_dev)
 			dev_err(bcl_dev->device, "bcl_register fail: UVLO2\n");
 			return -ENODEV;
 		}
-
-		bcl_cb_clr_irq(bcl_dev, UVLO1);
-		bcl_cb_clr_irq(bcl_dev, UVLO2);
-		bcl_cb_clr_irq(bcl_dev, BATOILO1);
 	}
 	if (bcl_dev->ifpmic == MAX77779) {
 		ret = google_bcl_register_zone(bcl_dev, UVLO1, "vdroop1", bcl_dev->vdroop1_pin,
